@@ -1,0 +1,64 @@
+# Modelo do arquivo congelado ao final da fase de validação (Seção 4.6.3).
+#
+# Copie para configs/frozen.yaml, preencha k, n_candidates e lambda_question
+# com os valores escolhidos NA VALIDAÇÃO, comite e marque com uma tag do git.
+# Depois disso o arquivo não é mais tocado — é ele que o Capítulo 5 reporta na
+# tabela de configuração congelada.
+#
+# Alvo: T4 de 16 GB (Colab ou Kaggle). A T4 é Turing: use float16, porque
+# bfloat16 exige Ampere ou mais novo.
+
+name: confirmatorio
+
+paths:
+  spider_root: /content/drive/MyDrive/tcc/data/spider
+  questions_pt: /content/drive/MyDrive/tcc/data/spider_pt/questions_pt.json
+  work_dir: /content/drive/MyDrive/tcc/artifacts
+
+data:
+  min_questions_per_db: 120
+  min_families_per_db: 25
+  pool_ratio: 0.60
+  val_ratio: 0.15
+  test_ratio: 0.25
+  near_duplicate_threshold: 0.92
+  seed: 20260904
+
+embedding:
+  model: intfloat/multilingual-e5-base
+  revision: null          # PREENCHER com o hash do commit no Hugging Face
+  device: cuda
+  batch_size: 128
+  normalize: true
+  query_prefix: "query: "
+  passage_prefix: "passage: "
+
+qdrant:
+  mode: local
+  path: /content/drive/MyDrive/tcc/artifacts/qdrant
+  collection: demos
+  distance: Cosine
+
+retrieval:
+  k: 4                    # PREENCHER a partir da validação: {1, 4, 8}
+  n_candidates: 25        # PREENCHER
+  lambda_question: 0.5    # PREENCHER
+  fixed_demo_seed: 20260919
+
+generation:
+  backend: vllm
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  revision: null          # PREENCHER com o hash do commit
+  quantization: awq       # 14B em 4 bits também cabe em 16 GB
+  dtype: float16
+  max_context_tokens: 8192
+  max_new_tokens: 320
+  temperature: 0.0
+  seed: 20261010
+  batch_size: 32
+  enable_prefix_caching: true   # todos os prompts de um banco compartilham o DDL
+  gpu_memory_utilization: 0.90
+
+sandbox:
+  timeout_s: 15.0
+  max_rows: 5000

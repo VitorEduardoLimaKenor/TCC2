@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Dados e saídas: pesados e reconstruíveis a partir do manifesto.
+data/
+artifacts/
+!artifacts/.gitkeep
+
+# O manifesto e a configuração congelada SÃO versionados. Se você os ignorar,
+# perde a reprodutibilidade que o Capítulo 4 promete.
+!artifacts/manifest.json
+!configs/frozen.yaml

@@ -1,0 +1,56 @@
+# Desenvolvimento na GTX 1060 (5 GB, Pascal).
+#
+# Modelo pequeno, de propósito: aqui o objetivo é o ciclo curto — pegar bug em
+# minutos, não em horas. Nada desta configuração aparece nos resultados; o
+# experimento confirmatório usa configs/frozen.example.yaml.
+
+name: dev-local
+
+paths:
+  spider_root: data/spider
+  questions_pt: data/spider_pt/questions_pt.json
+  work_dir: artifacts/dev
+
+data:
+  min_questions_per_db: 120
+  min_families_per_db: 25
+  pool_ratio: 0.60
+  val_ratio: 0.15
+  test_ratio: 0.25
+  near_duplicate_threshold: 0.92
+  seed: 20260904
+
+embedding:
+  model: intfloat/multilingual-e5-base
+  device: cpu          # não disputa VRAM com o gerador
+  batch_size: 64
+  normalize: true
+  query_prefix: "query: "
+  passage_prefix: "passage: "
+
+qdrant:
+  mode: local          # arquivo em disco, sem servidor
+  path: artifacts/dev/qdrant
+  collection: demos
+  distance: Cosine
+
+retrieval:
+  k: 4
+  n_candidates: 25
+  lambda_question: 0.5
+  fixed_demo_seed: 20260919
+
+generation:
+  backend: hf
+  model: Qwen/Qwen2.5-Coder-1.5B-Instruct
+  quantization: null
+  dtype: float16
+  max_context_tokens: 4096
+  max_new_tokens: 256
+  temperature: 0.0
+  seed: 20261010
+  batch_size: 4
+
+sandbox:
+  timeout_s: 15.0
+  max_rows: 5000
