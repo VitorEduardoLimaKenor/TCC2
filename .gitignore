@@ -7,11 +7,12 @@ dist/
 .pytest_cache/
 
 # Dados e saídas: pesados e reconstruíveis a partir do manifesto.
-data/
-artifacts/
-!artifacts/.gitkeep
+# A barra inicial é obrigatória. Sem ela, "data/" casa com qualquer pasta
+# chamada data em qualquer nível — e engole src/tcc_rag/data/, que é código.
+/data/
+/artifacts/
 
 # O manifesto e a configuração congelada SÃO versionados. Se você os ignorar,
 # perde a reprodutibilidade que o Capítulo 4 promete.
-!artifacts/manifest.json
-!configs/frozen.yaml
+!/artifacts/manifest.json
+!/configs/frozen.yaml

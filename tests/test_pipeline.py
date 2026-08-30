@@ -329,3 +329,44 @@ def test_hash_muda_com_parametro_e_nao_com_caminho():
 
     b.retrieval.k = 8
     assert a.config_hash != b.config_hash
+
+
+# ------------------------------------------------------- integridade do repo
+
+
+def test_todo_codigo_esta_versionado():
+    """Todo .py sob src/ precisa estar rastreado pelo git.
+
+    Existe porque um `.gitignore` com `data/` sem barra inicial engoliu o
+    pacote `src/tcc_rag/data/` inteiro: o código funcionava na máquina de
+    desenvolvimento e sumia no clone, com o erro aparecendo só no Colab.
+    """
+    import subprocess
+
+    raiz = Path(__file__).resolve().parent.parent
+    if not (raiz / ".git").exists():
+        pytest.skip("fora de um repositório git")
+
+    try:
+        saida = subprocess.run(
+            ["git", "ls-files", "src"],
+            cwd=raiz, capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pytest.skip("git indisponível")
+
+    rastreados = {
+        (raiz / linha).resolve()
+        for linha in saida.stdout.splitlines()
+        if linha.strip()
+    }
+    no_disco = {
+        p.resolve()
+        for p in (raiz / "src").rglob("*.py")
+        if "__pycache__" not in p.parts
+    }
+
+    faltando = sorted(str(p.relative_to(raiz)) for p in no_disco - rastreados)
+    assert not faltando, (
+        "arquivos existem no disco mas não iriam no clone: " + ", ".join(faltando)
+    )
