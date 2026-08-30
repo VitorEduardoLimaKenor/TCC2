@@ -258,3 +258,43 @@ def test_recusa_retomar_log_de_outra_particao(universo):
            RunLog(caminho), "r1", "digest_antigo")
 
     index.close()
+
+
+def test_rascunhos_de_c4_persistem_entre_execucoes(universo):
+    """O rascunho não depende de k, N nem λ — regenerá-lo na varredura seria
+    o desperdício mais caro do experimento."""
+    exemplos, schemas, tmp_path = universo
+
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "art4")
+    cfg.data.min_questions_per_db = 10
+    cfg.data.min_families_per_db = 3
+    cfg.qdrant.mode = "local"
+    cfg.qdrant.path = str(tmp_path / "qdrant4")
+    cfg.generation.backend = "dummy"
+    cfg.retrieval.k = 2
+
+    atribuidos = part.partition(exemplos, cfg.data)
+    pool = build_demos(atribuidos, partition=part.POOL)
+    embedder = StubEmbedder()
+    index = DemoIndex(cfg.qdrant, dimension=DIM)
+    index.recreate()
+    index.upsert(pool, embedder.encode([d.question_delex for d in pool], kind="passage"))
+    itens = build_test_items(atribuidos, partition=part.TEST)
+
+    def executa(run_id):
+        seletor = DemoSelector(cfg, index, embedder, pool)
+        runner = Runner(
+            cfg, DummyBackend(cfg.generation), seletor, schemas,
+            RunLog(tmp_path / f"{run_id}.jsonl"), run_id, "d1",
+        )
+        pendentes_antes = len(runner._draft_cache)
+        runner.run(itens, ("C4",))
+        return pendentes_antes
+
+    # Primeira execução: cache vazio. Segunda, com outro run_id (como numa
+    # varredura de λ): o cache tem de vir cheio do disco.
+    assert executa("varredura-a") == 0
+    assert executa("varredura-b") == len(itens)
+
+    index.close()

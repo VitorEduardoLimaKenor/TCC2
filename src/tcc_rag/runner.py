@@ -55,7 +55,51 @@ class Runner:
         self._check_partition()
         self.sandbox = Sandbox(cfg.sandbox)
         self._gold_cache: dict[tuple[str, str], ExecResult] = {}
-        self._draft_cache: dict[tuple[str, str], str] = {}
+        self._draft_cache: dict[tuple[str, str], str] = self._load_drafts()
+
+    # -------------------------------------------------- cache de rascunhos
+
+    @property
+    def _draft_path(self) -> Path:
+        """Cache em disco dos rascunhos de C4.
+
+        O rascunho depende apenas da pergunta e do modelo — não de k, de N nem
+        de λ. Sem persistência, a varredura da validação regeneraria todos eles
+        a cada combinação da grade, que é o desperdício mais caro do
+        experimento: nove combinações sobre cem itens custariam novecentas
+        gerações que já foram feitas.
+        """
+        import hashlib
+
+        chave = f"{self.cfg.generation.model}@{self.cfg.generation.revision or 'main'}"
+        marca = hashlib.sha1(chave.encode("utf-8")).hexdigest()[:12]
+        caminho = self.cfg.work / "cache" / f"drafts_{marca}.json"
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        return caminho
+
+    def _load_drafts(self) -> dict[tuple[str, str], str]:
+        import json
+
+        if not self._draft_path.exists():
+            return {}
+        try:
+            bruto = json.loads(self._draft_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        saida: dict[tuple[str, str], str] = {}
+        for chave, sql in bruto.items():
+            example_id, _, lang = chave.rpartition("|")
+            if example_id and lang:
+                saida[(example_id, lang)] = sql
+        return saida
+
+    def _save_drafts(self) -> None:
+        import json
+
+        payload = {f"{eid}|{lang}": sql for (eid, lang), sql in self._draft_cache.items()}
+        self._draft_path.write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
 
     def _check_partition(self) -> None:
         """Impede retomar um log produzido sob outra partição.
@@ -109,9 +153,12 @@ class Runner:
             for item in pending
         ]
 
+        print(f"[C4] gerando {len(pending)} rascunhos "
+              f"({len(self._draft_cache)} já em cache)")
         outputs = self.backend.generate(prompts)
         for item, gen in zip(pending, outputs):
             self._draft_cache[(item.example_id, item.lang)] = extract_sql(gen.text)
+        self._save_drafts()
 
     # ------------------------------------------------------------- gabarito
 
