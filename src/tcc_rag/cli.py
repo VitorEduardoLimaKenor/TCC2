@@ -201,6 +201,62 @@ def cmd_run(args) -> int:
     return 0
 
 
+def cmd_sweep(args) -> int:
+    """Varredura da fase de validacao (Secao 4.6.3).
+
+    Carrega o modelo uma unica vez e percorre a grade. Invocar `run` em laco
+    recarregaria o modelo a cada combinacao -- com um 7B sao uns dois minutos
+    por combinacao, jogados fora. So toca a validacao; o teste fica selado.
+    """
+    cfg = _cfg(args)
+    from .generation.llm import make_backend
+    from .pipeline import partition_digest
+    from .retrieval.embedder import Embedder
+    from .retrieval.index import DemoIndex
+    from .sweep import render, run_sweep, best
+
+    examples = load_manifest(cfg)
+    items = build_test_items(
+        examples, partition="val",
+        languages=tuple(args.langs) if args.langs else ("pt",),
+    )
+    if args.limit:
+        items = items[: args.limit]
+    if not items:
+        print("conjunto de validacao vazio", file=sys.stderr)
+        return 1
+
+    schemas = load_schemas(cfg.paths.spider_root)
+    pool = build_demos(examples, partition=part.POOL)
+    embedder = Embedder(cfg.embedding, cfg.work / "cache")
+    index = DemoIndex(cfg.qdrant, dimension=embedder.dimension)
+    backend = make_backend(cfg.generation)
+
+    total = len(args.k) * len(args.lambdas) * len(args.n_candidates)
+    print(f"itens={len(items)}  combinacoes={total}  "
+          f"condicoes={' '.join(args.conditions)}")
+
+    linhas = run_sweep(
+        cfg, items, pool, schemas, index, embedder, backend,
+        partition_digest(examples),
+        ks=args.k, lambdas=args.lambdas, ns=args.n_candidates,
+        conditions=args.conditions, on_progress=print,
+    )
+
+    write_json(cfg.work / "sweep.json", [l.as_dict() for l in linhas])
+    print()
+    print(render(linhas))
+    melhor = best(linhas)
+    if melhor:
+        print()
+        print(f"melhor: k={melhor.k}  lambda={melhor.lambda_question}  "
+              f"N={melhor.n_candidates}  EX={melhor.ex * 100:.1f}%  "
+              f"({melhor.condicao} em {melhor.lang})")
+    print(f"escrito: {cfg.work / 'sweep.json'}")
+    index.close()
+    return 0
+
+
 def cmd_evaluate(args) -> int:
     cfg = _cfg(args)
     from .evaluation import metrics
@@ -321,6 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("leakage", cmd_leakage, "reexecuta a auditoria de vazamento sobre o manifesto"),
         ("index", cmd_index, "vetoriza o pool e popula o Qdrant"),
         ("run", cmd_run, "executa as condições experimentais"),
+        ("sweep", cmd_sweep, "varre a grade de k, lambda e N na validação"),
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),
         ("stats", cmd_stats, "McNemar, bootstrap e diferenças em diferenças"),
         ("tables", cmd_tables, "gera as tabelas LaTeX do Capítulo 5"),
@@ -334,6 +391,17 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--langs", nargs="*", choices=list(ALL_LANGUAGES))
             p.add_argument("--limit", type=int, default=0)
             p.add_argument("--run-id", dest="run_id", default=None)
+        if name == "sweep":
+            p.add_argument("--split", default="val", choices=["val"])
+            p.add_argument("--langs", nargs="*", choices=list(ALL_LANGUAGES))
+            p.add_argument("--limit", type=int, default=150)
+            p.add_argument("--conditions", nargs="*", default=["C4"],
+                           choices=list(ALL_CONDITIONS))
+            p.add_argument("--k", nargs="*", type=int, default=[1, 4, 8])
+            p.add_argument("--lambdas", nargs="*", type=float,
+                           default=[0.5, 0.7, 0.9])
+            p.add_argument("--n-candidates", dest="n_candidates", nargs="*",
+                           type=int, default=[25])
         if name in {"evaluate", "stats", "tables"}:
             p.add_argument("--run-id", dest="run_id", default=None)
     return parser

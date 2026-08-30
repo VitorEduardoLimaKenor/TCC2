@@ -298,3 +298,56 @@ def test_rascunhos_de_c4_persistem_entre_execucoes(universo):
     assert executa("varredura-b") == len(itens)
 
     index.close()
+
+
+def test_varredura_percorre_a_grade_e_reaproveita_rascunhos(universo):
+    """A varredura da validação, com componentes falsos e sem GPU.
+
+    Verifica o que a fase 5 depende: uma linha por combinação e por idioma, e
+    o cache de rascunhos preenchido pela primeira combinação sendo reaproveitado
+    pelas demais — sem isso, cada ponto da grade repagaria a chamada de rascunho.
+    """
+    from tcc_rag.sweep import best, combos, render, run_sweep
+
+    exemplos, schemas, tmp_path = universo
+
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "art5")
+    cfg.data.min_questions_per_db = 10
+    cfg.data.min_families_per_db = 3
+    cfg.qdrant.mode = "local"
+    cfg.qdrant.path = str(tmp_path / "qdrant5")
+    cfg.generation.backend = "dummy"
+
+    atribuidos = part.partition(exemplos, cfg.data)
+    pool = build_demos(atribuidos, partition=part.POOL)
+    embedder = StubEmbedder()
+    index = DemoIndex(cfg.qdrant, dimension=DIM)
+    index.recreate()
+    index.upsert(pool, embedder.encode([d.question_delex for d in pool], kind="passage"))
+    itens = build_test_items(atribuidos, partition=part.TEST, languages=("pt",))
+
+    ks, lambdas, ns = [1, 2], [0.5, 0.9], [4]
+    assert len(combos(ks, lambdas, ns)) == 4
+
+    linhas = run_sweep(
+        cfg, itens, pool, schemas, index, embedder,
+        DummyBackend(cfg.generation), "d1",
+        ks=ks, lambdas=lambdas, ns=ns, conditions=("C4",),
+    )
+
+    assert len(linhas) == 4
+    assert {(l.k, l.lambda_question) for l in linhas} == {
+        (1, 0.5), (1, 0.9), (2, 0.5), (2, 0.9)
+    }
+    assert all(l.condicao == "C4" and l.lang == "pt" for l in linhas)
+    assert all(l.n_itens == len(itens) for l in linhas)
+
+    # Os rascunhos foram gerados uma vez e persistidos para toda a grade.
+    caches = list((cfg.work / "cache").glob("drafts_*.json"))
+    assert len(caches) == 1
+
+    assert best(linhas) in linhas
+    assert "hit@k" in render(linhas)
+
+    index.close()
