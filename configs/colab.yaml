@@ -1,0 +1,52 @@
+# Execucao no Colab com T4. Versionado de proposito: o notebook faz
+# `rm -rf` e reclona a cada sessao, entao um arquivo criado por %%writefile
+# desaparece. Configuracao e parte do experimento e mora no repositorio.
+name: colab-gpu
+
+paths:
+  spider_root: /content/drive/MyDrive/tcc/data/spider
+  questions_pt: /content/drive/MyDrive/tcc/data/spider_pt/questions_pt.json
+  work_dir: /content/drive/MyDrive/tcc/artifacts
+
+data:
+  min_questions_per_db: 90
+  min_families_per_db: 25
+  pool_ratio: 0.60
+  val_ratio: 0.15
+  test_ratio: 0.25
+  near_duplicate_threshold: 0.92
+  seed: 20260904
+
+embedding:
+  model: intfloat/multilingual-e5-base
+  device: cuda
+  batch_size: 128
+  normalize: true
+  query_prefix: "query: "
+  passage_prefix: "passage: "
+
+qdrant:
+  mode: local
+  path: /content/drive/MyDrive/tcc/artifacts/qdrant
+  collection: demos
+  distance: Cosine
+
+retrieval:
+  k: 4
+  n_candidates: 25
+  lambda_question: 0.5
+  fixed_demo_seed: 20260919
+
+generation:
+  backend: hf
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  quantization: bitsandbytes-4bit
+  dtype: float16
+  max_context_tokens: 4096
+  max_new_tokens: 256
+  seed: 20261010
+  batch_size: 4
+
+sandbox:
+  timeout_s: 15.0
+  max_rows: 5000
