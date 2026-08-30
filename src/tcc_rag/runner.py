@@ -58,6 +58,10 @@ class Runner:
 
     def prepare_drafts(self, items: list[TestItem]) -> None:
         """Gera em lote as consultas preliminares usadas por C4."""
+        # O seletor precisa do drafter mesmo quando o cache já está completo,
+        # senão uma execução retomada quebraria ao chegar em C4.
+        self.selector.drafter = lambda q: self._draft_cache.get((q.example_id, q.lang), "")
+
         pending = [
             item
             for item in items
@@ -79,8 +83,6 @@ class Runner:
         outputs = self.backend.generate(prompts)
         for item, gen in zip(pending, outputs):
             self._draft_cache[(item.example_id, item.lang)] = extract_sql(gen.text)
-
-        self.selector.drafter = lambda q: self._draft_cache.get((q.example_id, q.lang), "")
 
     # ------------------------------------------------------------- gabarito
 
