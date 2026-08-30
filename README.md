@@ -14,7 +14,10 @@ exemplos e orçamento de contexto constantes.
 
 ## Instalação
 
-Use Python 3.11 ou 3.12. O 3.13+ ainda não tem *wheels* para parte da pilha.
+Localmente, prefira **Python 3.12**: é onde a pilha de *machine learning* tem
+*wheels* para tudo sem compilar nada. O pacote não impõe teto de versão, porque
+o Colab e o Kaggle atualizam o Python quando querem e o experimento precisa
+rodar lá — no Colab, use o Python que vier, que o torch já está instalado.
 
 ```bash
 py -3.12 -m venv .venv

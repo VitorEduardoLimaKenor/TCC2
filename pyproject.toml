@@ -6,7 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "tcc-rag-text2sql"
 version = "0.1.0"
 description = "Recuperação de demonstrações orientada à estrutura para Text-to-SQL em português brasileiro"
-requires-python = ">=3.11,<3.13"
+# Sem teto superior de propósito: o Colab e o Kaggle atualizam a versão do
+# Python sem aviso, e um teto aqui bloqueia a instalação no ambiente em que o
+# experimento precisa rodar. O código é Python puro e não depende de nada
+# específico de versão; a recomendação de 3.12 para desenvolvimento local, no
+# README, é sobre disponibilidade de wheels, não sobre compatibilidade.
+requires-python = ">=3.11"
 dependencies = [
     "sqlglot>=25.0",
     "qdrant-client>=1.9",
