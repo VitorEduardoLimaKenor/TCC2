@@ -93,21 +93,34 @@ def cmd_partition(args) -> int:
         report = leak.audit(assigned, cfg.data.near_duplicate_threshold)
 
     print(report.render())
+
+    from .pipeline import environment_fingerprint, partition_digest
+
+    digest = partition_digest(assigned)
+    ambiente = environment_fingerprint()
+
     write_json(manifest_path(cfg), {
         "config_hash": cfg.config_hash,
+        "partition_digest": digest,
+        "environment": ambiente,
         "summary": part.summarize(assigned),
         "examples": [asdict(e) for e in assigned],
     })
     write_json(cfg.work / "leakage_report.json", asdict(report))
-    print(f"\nescrito: {manifest_path(cfg)}")
+    print(f"\npartition_digest: {digest}")
+    print(f"ambiente: python {ambiente['python']}, sqlglot {ambiente['sqlglot']}")
+    print(f"escrito: {manifest_path(cfg)}")
     return 0 if report.clean else 1
 
 
 def cmd_leakage(args) -> int:
+    from .pipeline import partition_digest
+
     cfg = _cfg(args)
     examples = load_manifest(cfg)
     report = leak.audit(examples, cfg.data.near_duplicate_threshold)
     print(report.render())
+    print(f"  partition_digest: {partition_digest(examples)}")
     return 0 if report.clean else 1
 
 

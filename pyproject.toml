@@ -13,7 +13,9 @@ description = "Recuperação de demonstrações orientada à estrutura para Text
 # README, é sobre disponibilidade de wheels, não sobre compatibilidade.
 requires-python = ">=3.11"
 dependencies = [
-    "sqlglot>=25.0",
+    # Pinado: a forma canonica que define as familias, e portanto a particao,
+    # e produzida por este parser. Trocar de versao pode trocar o agrupamento.
+    "sqlglot==30.17.0",
     "qdrant-client>=1.9",
     "sentence-transformers>=3.0",
     "numpy>=1.26",

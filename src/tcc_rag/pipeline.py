@@ -17,9 +17,67 @@ def manifest_path(cfg: ExperimentConfig) -> Path:
     return cfg.work / "manifest.json"
 
 
-def load_manifest(cfg: ExperimentConfig) -> list[Example]:
+def environment_fingerprint() -> dict[str, str]:
+    """Identifica o ambiente que produziu uma partição.
+
+    O particionamento depende do agrupamento em famílias canônicas, que por sua
+    vez depende do analisador de SQL. Se duas máquinas produzirem partições
+    diferentes, a reprodutibilidade prometida na Seção 4.9 não existe — e o
+    sintoma é silencioso: os totais batem, mas a composição muda. Registrar o
+    ambiente faz a divergência aparecer em vez de passar despercebida.
+    """
+    import platform
+
+    def versao(nome: str) -> str:
+        try:
+            from importlib.metadata import version
+
+            return version(nome)
+        except Exception:
+            return "?"
+
+    return {
+        "python": platform.python_version(),
+        "sqlglot": versao("sqlglot"),
+        "platform": platform.system(),
+    }
+
+
+def load_manifest(cfg: ExperimentConfig, warn: bool = True) -> list[Example]:
     payload = read_json(manifest_path(cfg))
+
+    gravado = payload.get("environment")
+    if warn and gravado:
+        atual = environment_fingerprint()
+        difere = {
+            k: (gravado.get(k), atual.get(k))
+            for k in ("python", "sqlglot")
+            if gravado.get(k) != atual.get(k)
+        }
+        if difere:
+            import sys as _sys
+
+            print(
+                "[manifesto] AVISO: gerado em ambiente diferente do atual: "
+                + "; ".join(f"{k}: {a} -> {b}" for k, (a, b) in difere.items())
+                + "\n[manifesto] Se a partição foi refeita aqui, ela pode não ser "
+                "a mesma. Use sempre o manifesto versionado.",
+                file=_sys.stderr,
+            )
+
     return [Example(**row) for row in payload["examples"]]
+
+
+def partition_digest(examples: list[Example]) -> str:
+    """Impressão digital da partição, insensível à ordem.
+
+    Dois ambientes que produzam a mesma alocação chegam ao mesmo dígito. É a
+    verificação que diz, em uma linha, se a partição é reprodutível.
+    """
+    import hashlib
+
+    linhas = sorted(f"{e.example_id}:{e.partition}" for e in examples)
+    return hashlib.sha256("\n".join(linhas).encode("utf-8")).hexdigest()[:16]
 
 
 def build_demos(examples: list[Example], partition: str = POOL) -> list[Demo]:
