@@ -177,11 +177,20 @@ def cmd_run(args) -> int:
     selector = DemoSelector(cfg, index, embedder, pool)
     backend = make_backend(cfg.generation)
 
+    from .pipeline import partition_digest
+
+    digest = partition_digest(examples)
     run_id = args.run_id or f"{cfg.name}-{split}-{cfg.config_hash}"
     log = RunLog(cfg.work / f"runs/{run_id}.jsonl")
     print(f"run_id={run_id}  já registradas={log.n_done}  itens={len(items)}")
+    print(f"partition_digest={digest}")
 
-    runner = Runner(cfg, backend, selector, schemas, log, run_id)
+    try:
+        runner = Runner(cfg, backend, selector, schemas, log, run_id, digest)
+    except RuntimeError as exc:
+        print(f"\n{exc}", file=sys.stderr)
+        index.close()
+        return 1
     conditions = tuple(args.conditions) if args.conditions else ALL_CONDITIONS
     written = runner.run(items, conditions)
 

@@ -214,3 +214,47 @@ def test_retomada_nao_duplica(universo):
     assert len(RunLog(caminho).rows()) == 2 * len(itens)
 
     index.close()
+
+
+def test_recusa_retomar_log_de_outra_particao(universo):
+    """Um log produzido sob outra partição não pode ser retomado em silêncio.
+
+    A chave de retomada é (run_id, condição, idioma, example_id) — nada disso
+    muda quando a partição muda. Sem esta verificação, linhas de um split
+    antigo passariam por válidas e dois experimentos se misturariam sem sinal.
+    """
+    exemplos, schemas, tmp_path = universo
+
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "art3")
+    cfg.data.min_questions_per_db = 10
+    cfg.data.min_families_per_db = 3
+    cfg.qdrant.mode = "local"
+    cfg.qdrant.path = str(tmp_path / "qdrant3")
+    cfg.generation.backend = "dummy"
+    cfg.retrieval.k = 2
+
+    atribuidos = part.partition(exemplos, cfg.data)
+    pool = build_demos(atribuidos, partition=part.POOL)
+    embedder = StubEmbedder()
+    index = DemoIndex(cfg.qdrant, dimension=DIM)
+    index.recreate()
+    index.upsert(pool, embedder.encode([d.question_delex for d in pool], kind="passage"))
+
+    itens = build_test_items(atribuidos, partition=part.TEST)
+    caminho = tmp_path / "particao.jsonl"
+
+    log = RunLog(caminho)
+    seletor = DemoSelector(cfg, index, embedder, pool)
+    Runner(cfg, DummyBackend(cfg.generation), seletor, schemas, log, "r1",
+           "digest_antigo").run(itens, ("C0",))
+
+    with pytest.raises(RuntimeError, match="outra partição"):
+        Runner(cfg, DummyBackend(cfg.generation), seletor, schemas,
+               RunLog(caminho), "r1", "digest_novo")
+
+    # Com o mesmo dígito, a retomada segue funcionando.
+    Runner(cfg, DummyBackend(cfg.generation), seletor, schemas,
+           RunLog(caminho), "r1", "digest_antigo")
+
+    index.close()

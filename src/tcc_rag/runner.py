@@ -43,6 +43,7 @@ class Runner:
         schemas: dict[str, DbSchema],
         log: RunLog,
         run_id: str,
+        partition_digest: str = "",
     ):
         self.cfg = cfg
         self.backend = backend
@@ -50,9 +51,37 @@ class Runner:
         self.schemas = schemas
         self.log = log
         self.run_id = run_id
+        self.partition_digest = partition_digest
+        self._check_partition()
         self.sandbox = Sandbox(cfg.sandbox)
         self._gold_cache: dict[tuple[str, str], ExecResult] = {}
         self._draft_cache: dict[tuple[str, str], str] = {}
+
+    def _check_partition(self) -> None:
+        """Impede retomar um log produzido sob outra partição.
+
+        A retomada compara `(run_id, condição, idioma, example_id)`. Nada disso
+        muda quando a partição muda: um mesmo exemplo pode ter saído do pool e
+        entrado no teste, e as linhas antigas seriam aceitas como válidas. O
+        resultado seria uma mistura de dois experimentos, sem nenhum sinal.
+        """
+        if not self.partition_digest:
+            return
+        anteriores = {
+            row.get("partition_digest")
+            for row in self.log.read()
+            if row.get("run_id") == self.run_id
+        }
+        anteriores.discard(None)
+        divergentes = anteriores - {self.partition_digest}
+        if divergentes:
+            raise RuntimeError(
+                f"o log {self.log.path.name} contém linhas de outra partição "
+                f"({', '.join(sorted(divergentes))}); a atual é "
+                f"{self.partition_digest}.\n"
+                f"Apague o arquivo ou use --run-id com outro nome. Retomar "
+                f"misturaria dois experimentos."
+            )
 
     # ------------------------------------------------------------ rascunhos
 
@@ -148,6 +177,7 @@ class Runner:
                 {
                     "run_id": self.run_id,
                     "config_hash": self.cfg.config_hash,
+                    "partition_digest": self.partition_digest,
                     "timestamp": time.time(),
                     "condition": condition,
                     "lang": item.lang,

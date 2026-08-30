@@ -97,4 +97,9 @@ class Embedder:
 
     @property
     def dimension(self) -> int:
-        return int(self.model.get_sentence_embedding_dimension())
+        # O nome mudou nas versões recentes do sentence-transformers.
+        for nome in ("get_embedding_dimension", "get_sentence_embedding_dimension"):
+            metodo = getattr(self.model, nome, None)
+            if callable(metodo):
+                return int(metodo())
+        raise AttributeError("modelo sem método de dimensão de embedding")
