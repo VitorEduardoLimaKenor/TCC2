@@ -16,7 +16,9 @@ paths:
   work_dir: /content/drive/MyDrive/tcc/artifacts
 
 data:
-  min_questions_per_db: 120
+  # 17 bancos, 1121 no pool / 275 na validação / 471 no teste.
+  # Critério: poder do teste primário. Ver comentário em configs/dev-local.yaml.
+  min_questions_per_db: 90
   min_families_per_db: 25
   pool_ratio: 0.60
   val_ratio: 0.15

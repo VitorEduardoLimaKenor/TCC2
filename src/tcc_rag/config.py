@@ -35,10 +35,22 @@ class PathsConfig:
 
 @dataclass
 class DataConfig:
-    min_questions_per_db: int = 120
-    """Bancos com menos perguntas anotadas que isto são descartados."""
+    min_questions_per_db: int = 90
+    """Bancos com menos perguntas anotadas que isto são descartados.
+
+    O valor foi determinado pela auditoria de 30/08/2026 sobre o Spider, com
+    o poder do teste primário como critério. Com 120 sobram 4 bancos e 144
+    pares de teste, o que dá cerca de 21 pares discordantes a uma taxa de
+    discordância de 15% — abaixo dos ~47 exigidos para detectar uma assimetria
+    de 70/30 a 80% de poder. Com 90 sobram 17 bancos e 471 pares.
+    """
     min_families_per_db: int = 25
-    """Porta de decisão da Fase 0: sem famílias suficientes não há recorte."""
+    """Porta de decisão da Fase 0: sem famílias suficientes não há recorte.
+
+    Não é o critério restritivo. Em todos os cortes avaliados os bancos
+    selecionados apresentam de 47 a 82 famílias, bem acima deste limiar; o que
+    restringe é o volume por banco, não a diversidade de padrões de consulta.
+    """
     pool_ratio: float = 0.60
     val_ratio: float = 0.15
     test_ratio: float = 0.25

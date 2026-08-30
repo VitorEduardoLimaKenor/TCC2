@@ -30,8 +30,20 @@ from .logging_io import RunLog, write_json
 from .pipeline import build_demos, build_test_items, load_manifest, manifest_path
 
 
+DEFAULT_CONFIG = "configs/dev-local.yaml"
+
+
+def _config_path(args) -> str:
+    """Aceita --config antes ou depois do subcomando.
+
+    `tcc-rag --config X prepare` e `tcc-rag prepare --config X` são a mesma
+    coisa; a segunda forma é a natural e é a que a documentação usa.
+    """
+    return getattr(args, "config_sub", None) or getattr(args, "config_top", None) or DEFAULT_CONFIG
+
+
 def _cfg(args) -> ExperimentConfig:
-    return ExperimentConfig.load(args.config)
+    return ExperimentConfig.load(_config_path(args))
 
 
 # --------------------------------------------------------------- comandos
@@ -277,7 +289,8 @@ def _run_path(cfg: ExperimentConfig, args) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tcc-rag", description=__doc__)
-    parser.add_argument("--config", default="configs/dev-local.yaml")
+    parser.add_argument("--config", dest="config_top", default=None,
+                        help=f"arquivo de configuração (padrão: {DEFAULT_CONFIG})")
     sub = parser.add_subparsers(dest="command", required=True)
 
     for name, fn, helptext in (
@@ -292,6 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         p = sub.add_parser(name, help=helptext)
         p.set_defaults(func=fn)
+        p.add_argument("--config", dest="config_sub", default=None)
         if name == "run":
             p.add_argument("--split", default="test", choices=["val", "test"])
             p.add_argument("--conditions", nargs="*", choices=list(ALL_CONDITIONS))
@@ -306,9 +320,9 @@ def build_parser() -> argparse.ArgumentParser:
 def app(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    # --config é global mas precisa existir também depois do subcomando
-    if not Path(args.config).exists():
-        print(f"configuração não encontrada: {args.config}", file=sys.stderr)
+    caminho = _config_path(args)
+    if not Path(caminho).exists():
+        print(f"configuração não encontrada: {caminho}", file=sys.stderr)
         return 2
     return args.func(args)
 

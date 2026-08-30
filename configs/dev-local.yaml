@@ -12,7 +12,11 @@ paths:
   work_dir: artifacts/dev
 
 data:
-  min_questions_per_db: 120
+  # Auditoria de 30/08/2026 sobre o Spider: com 120 sobram 4 bancos e 144 pares
+  # de teste, o que subdimensiona o McNemar. Com 90 sobram 17 bancos e 471
+  # pares. O limiar de famílias não é o critério restritivo — os bancos
+  # selecionados têm de 47 a 82 famílias.
+  min_questions_per_db: 90
   min_families_per_db: 25
   pool_ratio: 0.60
   val_ratio: 0.15
@@ -36,6 +40,10 @@ qdrant:
 
 retrieval:
   k: 4
+  # Com 17 bancos, o pool fica em ~66 demonstrações por banco e por idioma.
+  # N=25 é 38% do pool: a primeira etapa filtra, mas não muito. Varra este
+  # valor na validação junto com k e lambda — um N menor torna a triagem mais
+  # seletiva, um N maior dá mais trabalho ao reordenador.
   n_candidates: 25
   lambda_question: 0.5
   fixed_demo_seed: 20260919
