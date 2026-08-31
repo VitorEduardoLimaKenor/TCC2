@@ -370,3 +370,62 @@ def test_todo_codigo_esta_versionado():
     assert not faltando, (
         "arquivos existem no disco mas não iriam no clone: " + ", ".join(faltando)
     )
+
+
+# ------------------------------------------------------------- amostragem
+
+
+def _itens_de_teste(n_bancos=4, por_banco=20, langs=("pt", "en")):
+    from tcc_rag.schemas import TestItem
+
+    itens = []
+    for b in range(n_bancos):
+        for i in range(por_banco):
+            for lang in langs:
+                itens.append(TestItem(
+                    example_id=f"db{b}_ex{i}", db_id=f"db{b}", lang=lang,
+                    question_raw="q", question_delex="q", gold_sql="SELECT 1",
+                ))
+    return itens
+
+
+def test_fatiar_o_comeco_nao_e_amostrar():
+    """O bug que motivou `subsample`: os itens vêm agrupados por banco, então
+    pegar os primeiros N cobre só os primeiros bancos."""
+    from tcc_rag.pipeline import subsample
+
+    itens = _itens_de_teste()
+    cabeca = {i.db_id for i in itens[:40]}
+    amostra = {i.db_id for i in subsample(itens, 40)}
+
+    assert len(cabeca) == 1, "fatiar o começo pega um banco só"
+    assert len(amostra) == 4, "a amostra tem de cobrir todos os bancos"
+
+
+def test_amostra_mantem_os_pares_de_idioma():
+    from collections import Counter
+
+    from tcc_rag.pipeline import subsample
+
+    amostra = subsample(_itens_de_teste(), 40)
+    por_exemplo = Counter(i.example_id for i in amostra)
+    assert set(por_exemplo.values()) == {2}, "cada exemplo entra nos dois idiomas"
+
+
+def test_amostra_e_deterministica_e_respeita_o_teto():
+    from tcc_rag.pipeline import subsample
+
+    itens = _itens_de_teste()
+    a = subsample(itens, 40)
+    b = subsample(itens, 40)
+    assert [i.example_id for i in a] == [i.example_id for i in b]
+    assert len(a) <= 40
+    assert subsample(itens, 10_000) is itens
+
+
+def test_digito_do_conjunto_distingue_amostras():
+    from tcc_rag.pipeline import item_set_digest, subsample
+
+    itens = _itens_de_teste()
+    assert item_set_digest(subsample(itens, 40)) != item_set_digest(subsample(itens, 80))
+    assert item_set_digest(subsample(itens, 40)) == item_set_digest(subsample(itens, 40))

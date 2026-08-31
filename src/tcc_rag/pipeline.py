@@ -86,6 +86,71 @@ def load_manifest(cfg: ExperimentConfig, warn: bool = True) -> list[Example]:
     return examples
 
 
+def subsample(
+    items: list[TestItem], limit: int, seed: int = 20261010
+) -> list[TestItem]:
+    """Amostra estratificada por banco, mantendo os pares de idioma juntos.
+
+    Existe porque cortar o começo da lista **não** é amostrar. Os itens saem do
+    manifesto agrupados por banco, então `items[:150]` devolve os primeiros
+    bancos em ordem alfabética e ignora os demais — na validação deste trabalho,
+    150 de 275 itens cobriam 9 dos 17 bancos, sem nenhuma sobreposição com o
+    restante. Uma varredura de hiperparâmetros sobre esse recorte escolhe o
+    parâmetro que serve àqueles nove domínios.
+
+    A amostragem é por exemplo, não por item: se as duas línguas estiverem
+    presentes, ambas entram ou nenhuma entra, sem o que a comparação bilíngue
+    deixa de ser pareada.
+    """
+    import random
+
+    if limit <= 0 or limit >= len(items):
+        return items
+
+    langs = {item.lang for item in items}
+    por_exemplo: dict[str, list[TestItem]] = {}
+    banco_de: dict[str, str] = {}
+    for item in items:
+        por_exemplo.setdefault(item.example_id, []).append(item)
+        banco_de[item.example_id] = item.db_id
+
+    alvo = max(1, limit // max(1, len(langs)))
+    if alvo >= len(por_exemplo):
+        return items
+
+    por_banco: dict[str, list[str]] = {}
+    for example_id, db_id in banco_de.items():
+        por_banco.setdefault(db_id, []).append(example_id)
+
+    total = len(por_exemplo)
+    cotas: dict[str, float] = {
+        db: alvo * len(ids) / total for db, ids in por_banco.items()
+    }
+    inteiras = {db: int(q) for db, q in cotas.items()}
+    # Maior resto: distribui o que sobrou para os bancos com maior fração.
+    faltam = alvo - sum(inteiras.values())
+    for db in sorted(cotas, key=lambda d: -(cotas[d] - inteiras[d]))[: max(0, faltam)]:
+        inteiras[db] += 1
+
+    escolhidos: list[str] = []
+    for db in sorted(por_banco):
+        ids = sorted(por_banco[db])
+        random.Random(f"{seed}|{db}").shuffle(ids)
+        escolhidos.extend(ids[: inteiras.get(db, 0)])
+
+    selecionados = set(escolhidos)
+    return [item for item in items if item.example_id in selecionados]
+
+
+def item_set_digest(items: list[TestItem]) -> str:
+    """Identifica o conjunto avaliado, para que amostras distintas não
+    compartilhem log."""
+    import hashlib
+
+    chave = "\n".join(sorted(f"{i.example_id}:{i.lang}" for i in items))
+    return hashlib.sha256(chave.encode("utf-8")).hexdigest()[:8]
+
+
 def partition_digest(examples: list[Example]) -> str:
     """Impressão digital da partição, insensível à ordem.
 
@@ -158,6 +223,8 @@ def build_test_items(
 
 __all__ = [
     "POOL",
+    "item_set_digest",
+    "subsample",
     "TEST",
     "VAL",
     "build_demos",

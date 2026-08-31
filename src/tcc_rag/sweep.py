@@ -70,6 +70,7 @@ def run_sweep(
     ks: Sequence[int],
     lambdas: Sequence[float],
     ns: Sequence[int],
+    item_digest: str = "",
     conditions: Iterable[str] = ("C4",),
     on_progress: Callable[[str], None] | None = None,
 ) -> list[SweepRow]:
@@ -91,7 +92,8 @@ def run_sweep(
         seletor = DemoSelector(atual, index, embedder, pool)
 
         for condicao in conditions:
-            run_id = f"sweep-{condicao}-k{k}-l{int(round(lam * 100))}-n{n}"
+            sufixo = f"-{item_digest}" if item_digest else ""
+            run_id = f"sweep-{condicao}-k{k}-l{int(round(lam * 100))}-n{n}{sufixo}"
             log = RunLog(cfg.work / f"runs/{run_id}.jsonl")
             Runner(
                 atual, backend, seletor, schemas, log, run_id, partition_digest

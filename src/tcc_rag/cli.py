@@ -164,7 +164,8 @@ def cmd_run(args) -> int:
         languages=tuple(args.langs) if args.langs else ALL_LANGUAGES,
     )
     if args.limit:
-        items = items[: args.limit]
+        from .pipeline import subsample
+        items = subsample(items, args.limit, seed=cfg.data.seed)
     if not items:
         print(f"nenhum item na partição {split}", file=sys.stderr)
         return 1
@@ -213,6 +214,7 @@ def cmd_sweep(args) -> int:
     from .pipeline import partition_digest
     from .retrieval.embedder import Embedder
     from .retrieval.index import DemoIndex
+    from .pipeline import item_set_digest, subsample
     from .sweep import render, run_sweep, best
 
     examples = load_manifest(cfg)
@@ -221,7 +223,7 @@ def cmd_sweep(args) -> int:
         languages=tuple(args.langs) if args.langs else ("pt",),
     )
     if args.limit:
-        items = items[: args.limit]
+        items = subsample(items, args.limit, seed=cfg.data.seed)
     if not items:
         print("conjunto de validacao vazio", file=sys.stderr)
         return 1
@@ -233,13 +235,15 @@ def cmd_sweep(args) -> int:
     backend = make_backend(cfg.generation)
 
     total = len(args.k) * len(args.lambdas) * len(args.n_candidates)
-    print(f"itens={len(items)}  combinacoes={total}  "
+    bancos = len({i.db_id for i in items})
+    print(f"itens={len(items)}  bancos={bancos}  combinacoes={total}  "
           f"condicoes={' '.join(args.conditions)}")
 
     linhas = run_sweep(
         cfg, items, pool, schemas, index, embedder, backend,
         partition_digest(examples),
         ks=args.k, lambdas=args.lambdas, ns=args.n_candidates,
+        item_digest=item_set_digest(items),
         conditions=args.conditions, on_progress=print,
     )
 
