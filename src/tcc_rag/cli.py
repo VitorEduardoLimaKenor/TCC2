@@ -187,7 +187,7 @@ def cmd_run(args) -> int:
     print(f"partition_digest={digest}")
 
     try:
-        runner = Runner(cfg, backend, selector, schemas, log, run_id, digest)
+        runner = Runner(cfg, backend, selector, schemas, log, run_id, digest, split=split)
     except RuntimeError as exc:
         print(f"\n{exc}", file=sys.stderr)
         index.close()
@@ -265,14 +265,14 @@ def cmd_evaluate(args) -> int:
     cfg = _cfg(args)
     from .evaluation import metrics
 
-    log = RunLog(_run_path(cfg, args))
-    rows = log.rows()
+    rows = _report_rows(cfg, args)
     if not rows:
         print("log vazio", file=sys.stderr)
         return 1
 
     summary = metrics.summarize(rows)
     write_json(cfg.work / "summary.json", summary)
+    write_json(cfg.work / "summary_selection.json", _selection(rows))
 
     print(f"{'cond|lang':<12} {'n':>5} {'EX':>7} {'EM':>7} {'n/exec':>7} "
           f"{'hit@k':>7} {'fallb':>7} {'tok':>8}")
@@ -288,7 +288,7 @@ def cmd_stats(args) -> int:
     cfg = _cfg(args)
     from .evaluation import stats
 
-    rows = RunLog(_run_path(cfg, args)).rows()
+    rows = _report_rows(cfg, args)
     if not rows:
         print("log vazio", file=sys.stderr)
         return 1
@@ -302,30 +302,36 @@ def cmd_stats(args) -> int:
                 db[row["example_id"]] = row["db_id"]
         return ids, ok, db
 
-    _, c4_pt, db_map = vector("C4", "pt")
+    _, c3_pt, db_map = vector("C3", "pt")
     _, c2_pt, _ = vector("C2", "pt")
-    shared = sorted(set(c4_pt) & set(c2_pt))
-    if not shared:
-        print("sem interseção entre C4 e C2 em português", file=sys.stderr)
-        return 1
-
-    a = [c4_pt[i] for i in shared]
-    b = [c2_pt[i] for i in shared]
-    strata = [db_map[i] for i in shared]
-
-    print("=== Comparação primária: C4 × C2 em português ===")
-    mc = stats.mcnemar_exact(a, b)
-    print(mc.render())
-    ci = stats.paired_bootstrap_diff(a, b, strata, seed=cfg.data.seed)
-    print(ci.render())
-    print(f"pares discordantes necessários para 70/30 a 80% de poder: "
+    _, c4_pt, _ = vector("C4", "pt")
+    report = {"selection": _selection(rows), "comparisons": {}}
+    for name, treated, label in (
+        ("C3-C2|pt", c3_pt, "Comparação primária: C3 × C2 em português"),
+        ("C4-C2|pt", c4_pt, "H1 original: C4 × C2 em português (comparação secundária)"),
+    ):
+        if name.startswith("C4") and not treated:
+            print("H1 não calculada: C4 em português ausente")
+            continue
+        shared = _paired_ids(treated, c2_pt)
+        a = [treated[i] for i in shared]
+        b = [c2_pt[i] for i in shared]
+        strata = [db_map[i] for i in shared]
+        print(f"=== {label} ===")
+        mc = stats.mcnemar_exact(a, b)
+        ci = stats.paired_bootstrap_diff(a, b, strata, seed=cfg.data.seed)
+        print(mc.render())
+        print(ci.render())
+        report["comparisons"][name] = {"mcnemar": asdict(mc), "bootstrap": asdict(ci)}
+    print(f"ilustração normal, não é o poder do estudo: pares discordantes "
+          f"necessários para 70/30 a 80% de poder: "
           f"{stats.minimum_discordant_pairs(0.70)}")
 
     _, c0_pt, _ = vector("C0", "pt")
     _, c4_en, _ = vector("C4", "en")
     _, c0_en, _ = vector("C0", "en")
-    quad = sorted(set(c4_pt) & set(c0_pt) & set(c4_en) & set(c0_en))
-    if quad:
+    if c4_en or c0_en:
+        quad = _paired_ids(c4_pt, c0_pt, c4_en, c0_en)
         print("\n=== Diferença entre idiomas (diferenças em diferenças) ===")
         did = stats.difference_in_differences(
             [c4_pt[i] for i in quad],
@@ -336,9 +342,13 @@ def cmd_stats(args) -> int:
             seed=cfg.data.seed,
         )
         print(did.render())
+        report["h2_original"] = asdict(did)
         if not did.conclusive:
             print("intervalo contém zero: reportar como inconclusivo, "
                   "não como ausência de efeito")
+    else:
+        print("H2 não calculada: resultados em inglês ausentes")
+    write_json(cfg.work / "stats.json", report)
     return 0
 
 
@@ -346,24 +356,44 @@ def cmd_tables(args) -> int:
     cfg = _cfg(args)
     from .report.tables import write_all
 
-    rows = RunLog(_run_path(cfg, args)).rows()
+    rows = _report_rows(cfg, args)
     if not rows:
         print("log vazio", file=sys.stderr)
         return 1
     out = cfg.work / "tabelas"
+    groups = {}
+    for row in rows:
+        groups.setdefault((row["condition"], row["lang"]), {})[row["example_id"]] = True
+    _paired_ids(*groups.values())
     written = write_all(rows, out)
+    write_json(out / "selection.json", _selection(rows))
     for path in written:
         print(f"escrito: {path}")
     return 0
 
 
-def _run_path(cfg: ExperimentConfig, args) -> Path:
-    if args.run_id:
-        return cfg.work / f"runs/{args.run_id}.jsonl"
-    runs = sorted((cfg.work / "runs").glob("*.jsonl"))
-    if not runs:
-        return cfg.work / "runs/none.jsonl"
-    return runs[-1]
+def _report_rows(cfg: ExperimentConfig, args) -> list[dict]:
+    from .logging_io import report_rows
+
+    return report_rows(
+        cfg.work / "runs", config_hash=args.config_hash or cfg.config_hash,
+        run_ids=args.run_id, split=args.split, partition_digest=args.partition_digest,
+    )
+
+
+def _selection(rows: list[dict]) -> dict:
+    return {
+        "run_ids": sorted({row["run_id"] for row in rows}),
+        **{field: rows[0][field] for field in ("config_hash", "partition_digest", "split")},
+        "n_rows": len(rows),
+    }
+
+
+def _paired_ids(*vectors: dict) -> list[str]:
+    if not vectors or not vectors[0] or any(set(v) != set(vectors[0]) for v in vectors[1:]):
+        raise ValueError("pareamento incompleto: as condições/idiomas precisam cobrir "
+                         "exatamente os mesmos exemplos; nenhuma interseção foi descartada")
+    return sorted(vectors[0])
 
 
 # ------------------------------------------------------------------ parser
@@ -407,7 +437,12 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--n-candidates", dest="n_candidates", nargs="*",
                            type=int, default=[25])
         if name in {"evaluate", "stats", "tables"}:
-            p.add_argument("--run-id", dest="run_id", default=None)
+            p.add_argument("--run-id", dest="run_id", nargs="+", default=None,
+                           help="logs a combinar explicitamente (sem observações duplicadas)")
+            p.add_argument("--config-hash", default=None,
+                           help="hash esperado; padrão: hash do arquivo --config")
+            p.add_argument("--split", choices=["val", "test"], default=None)
+            p.add_argument("--partition-digest", default=None)
     return parser
 
 
@@ -418,7 +453,11 @@ def app(argv: list[str] | None = None) -> int:
     if not Path(caminho).exists():
         print(f"configuração não encontrada: {caminho}", file=sys.stderr)
         return 2
-    return args.func(args)
+    try:
+        return args.func(args)
+    except ValueError as exc:
+        print(f"erro: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

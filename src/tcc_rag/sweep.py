@@ -96,7 +96,7 @@ def run_sweep(
             run_id = f"sweep-{condicao}-k{k}-l{int(round(lam * 100))}-n{n}{sufixo}"
             log = RunLog(cfg.work / f"runs/{run_id}.jsonl")
             Runner(
-                atual, backend, seletor, schemas, log, run_id, partition_digest
+                atual, backend, seletor, schemas, log, run_id, partition_digest, split="val"
             ).run(items, (condicao,))
 
             for chave, valor in metrics.summarize(log.rows()).items():

@@ -9,8 +9,8 @@ exemplos e orçamento de contexto constantes.
 | C0 | nenhuma | ponto de partida do modelo no ambiente |
 | C1 | *k* exemplos fixos do banco | separa "ver o domínio" de "receber exemplo pertinente" |
 | C2 | *top-k* por similaridade da pergunta original | **comparação principal** |
-| C3 | *top-k* por similaridade da pergunta delexicalizada | isola a primeira etapa |
-| C4 | recuperação em duas etapas | **método proposto** |
+| C3 | *top-k* por similaridade da pergunta delexicalizada | método da comparação primária após a validação |
+| C4 | recuperação em duas etapas | análise de componente; preserva H1 original |
 
 ## Instalação
 
@@ -73,6 +73,35 @@ permite atravessar quedas de sessão no Colab e no Kaggle.
 
 Para ensaiar o encadeamento inteiro sem GPU, troque `generation.backend` para
 `dummy`. Os números não significam nada, mas todo o caminho é exercitado.
+
+### Seleção dos logs para relatórios
+
+`evaluate`, `stats` e `tables` selecionam o hash do arquivo `--config` por
+padrão. Nunca escolhem o último arquivo por ordem alfabética. Se houver mais
+de um log compatível, especifique `--run-id`. É possível combinar logs de
+condições separadas, desde que tenham o mesmo hash, partição e split, sem
+duplicar observações:
+
+```bash
+tcc-rag evaluate --config configs/colab.yaml --run-id rodada-c2 rodada-c3 --split val --partition-digest 948225fbfa08dab4
+tcc-rag stats --config configs/colab.yaml --run-id rodada-c2 rodada-c3 --split val --partition-digest 948225fbfa08dab4
+```
+
+Os nomes acima são exemplos: use os IDs gravados nos arquivos reais.
+`--config-hash HASH` permite selecionar uma configuração histórica ou um
+ponto da varredura com hash diferente do YAML atual. Isso não permite misturar
+hashes. Linhas inválidas, resultados ausentes e observações duplicadas geram
+erro; `stats` e `tables` também recusam conjuntos de itens incompletamente
+pareados. Logs antigos sem `split` são recusados: sua proveniência deve ser
+recuperada do manifesto original em uma migração auditada, sem inferir o split
+apenas pelo nome do arquivo e sem alterar silenciosamente os originais.
+
+`evaluate` grava `summary.json` e `summary_selection.json`; `stats` grava
+`stats.json`, incluindo a seleção e as estimativas. Os valores-p são nominais,
+sem correção de multiplicidade: o plano inferencial precisa ser formalizado
+antes do teste. C3×C2 é a comparação primária; C4×C2 preserva H1; o contraste
+linguístico de H2 continua usando C4 e C0. A célula de inspeção do notebook
+reutiliza a seleção do último `evaluate` bem-sucedido.
 
 ## Ordem de trabalho
 

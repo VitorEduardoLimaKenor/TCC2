@@ -1,9 +1,8 @@
 """Procedimentos estatísticos (Seção 4.8).
 
-Uma única comparação primária — C4 contra C2 em português — pelo teste exato de
-McNemar, apropriado a desfechos binários pareados. As demais comparações são
-exploratórias e saem acompanhadas de intervalo de confiança, sem atribuição de
-significância confirmatória.
+Após a redesignação registrada na validação, C3 contra C2 em português é a
+comparação primária. C4 contra C2 preserva H1 como comparação secundária. O teste
+exato de McNemar é bilateral e o bootstrap mantém o pareamento e os bancos.
 """
 
 from __future__ import annotations

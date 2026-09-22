@@ -44,6 +44,7 @@ class Runner:
         log: RunLog,
         run_id: str,
         partition_digest: str = "",
+        split: str = "",
     ):
         self.cfg = cfg
         self.backend = backend
@@ -52,6 +53,7 @@ class Runner:
         self.log = log
         self.run_id = run_id
         self.partition_digest = partition_digest
+        self.split = split
         self._check_partition()
         self.sandbox = Sandbox(cfg.sandbox)
         self._gold_cache: dict[tuple[str, str], ExecResult] = {}
@@ -225,6 +227,7 @@ class Runner:
                     "run_id": self.run_id,
                     "config_hash": self.cfg.config_hash,
                     "partition_digest": self.partition_digest,
+                    "split": self.split,
                     "timestamp": time.time(),
                     "condition": condition,
                     "lang": item.lang,
