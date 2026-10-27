@@ -16,6 +16,9 @@ dependencies = [
     # Pinado: a forma canonica que define as familias, e portanto a particao,
     # e produzida por este parser. Trocar de versao pode trocar o agrupamento.
     "sqlglot==30.17.0",
+    # Pinado: o avaliador oficial de EX (evaluation/_spider_oficial) remove
+    # DISTINCT a partir dos tokens deste parser.
+    "sqlparse==0.6.0",
     "qdrant-client>=1.9",
     "sentence-transformers>=3.0",
     "numpy>=1.26",

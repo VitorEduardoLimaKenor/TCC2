@@ -103,6 +103,31 @@ antes do teste. C3×C2 é a comparação primária; C4×C2 preserva H1; o contra
 linguístico de H2 continua usando C4 e C0. A célula de inspeção do notebook
 reutiliza a seleção do último `evaluate` bem-sucedido.
 
+## Acurácia de execução
+
+A EX é a do avaliador oficial do Spider, o `exec_eval.py` do
+[test-suite-sql-eval](https://github.com/taoyds/test-suite-sql-eval) no commit
+`e97acc5`, copiado sem alteração em `evaluation/_spider_oficial/` e conferido
+pelo blob git antes de cada uso. A comparação segue as regras oficiais:
+multiconjunto de linhas, permutação de colunas, ordem apenas quando a referência
+contém "order by" e remoção de DISTINCT nas duas consultas (`keep_distinct=False`,
+padrão oficial). A predição também tem "value" trocado por "1", como no
+`evaluation.py` oficial. Só a execução é do projeto: banco original, somente
+leitura, processo separado e tempo limite de 15 s.
+
+Cada linha do log traz `ex_status`:
+
+| `ex_status` | Significado | `ex_correct` |
+|---|---|---|
+| `coincide` | resultados equivalentes (inclusive dois resultados vazios, `ex_ambos_vazios`) | `true` |
+| `difere` | resultados diferentes; com mais linhas que a referência, a leitura para em referência + 1 | `false` |
+| `erro_predicao` | a predição falha, tenta escrever ou é vazia | `false` |
+| `tempo_predicao` | a predição excede o tempo limite | `false` |
+| `referencia_invalida` | a referência falha ou excede o tempo; o item sai dos denominadores e é contado à parte | `null` |
+
+A acurácia por *test suite* não é calculada: as suítes destiladas cobrem apenas
+os bancos do desenvolvimento do Spider, e só `car_1` e `world_1` estão no recorte.
+
 ## Ordem de trabalho
 
 O avaliador vem antes do RAG. Enquanto `tcc-rag run --conditions C0` não
@@ -127,7 +152,9 @@ resultado sem dar sinal:
 - o gabarito de um item de teste nunca aparece entre as demonstrações;
 - entre duas condições, o *prompt* difere apenas no bloco de demonstrações;
 - a delexicalização não consulta o SQL de referência;
-- o sandbox rejeita escrita e instrução múltipla, e não altera o banco;
+- o sandbox rejeita escrita, ATTACH e PRAGMA, e não altera o banco;
+- a EX do projeto coincide com a função oficial `eval_exec_match` nos casos
+  sintéticos, e a cópia do avaliador oficial é idêntica à do commit fixado;
 - reexecutar não duplica linha no log.
 
 ## Estrutura
@@ -156,7 +183,8 @@ src/tcc_rag/
     llm.py            backends dummy / transformers / vLLM
   evaluation/
     sandbox.py        execução isolada, somente leitura, com timeout
-    metrics.py        EX, EM, acerto estrutural, agregados
+    ex_oficial.py     EX pelo avaliador oficial do Spider (cópia em _spider_oficial/)
+    metrics.py        EM, acerto estrutural, agregados
     stats.py          McNemar exato, bootstrap pareado, diferenças em diferenças
   report/
     tables.py         tabelas LaTeX do Capítulo 5

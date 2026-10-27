@@ -1,78 +1,18 @@
 """Métricas de avaliação (Seção 4.7).
 
-Desfecho principal: acurácia de execução. A consulta gerada é executada e seu
-conjunto de resultados é comparado ao da consulta de referência. Uma mesma
-pergunta admite formulações SQL distintas e semanticamente equivalentes, o que
-inviabiliza a correspondência textual como desfecho.
-
-A comparação segue a convenção do Spider: sensível à ordem apenas quando a
-consulta de referência tem ORDER BY, e tolerante à permutação de colunas.
+Desfecho principal: acurácia de execução, decidida pelo avaliador oficial do
+Spider em `ex_oficial`. Este módulo guarda as métricas secundárias e os
+agregados. O comparador próprio usado até a validação de setembro de 2026 foi
+substituído na E02; ele continua no commit 267a4fe, de onde a comparação entre
+avaliadores o reproduz.
 """
 
 from __future__ import annotations
 
-from itertools import permutations
-from typing import Any, Iterable
+from typing import Any
 
 from ..data.normalize import canonicalize
-from ..schemas import ExecResult
 from ..structure import signature as sig
-
-_MAX_PERMUTED_COLUMNS = 6
-
-
-def _as_multiset(rows: Iterable[tuple]) -> list[tuple]:
-    return sorted(rows, key=lambda row: tuple(str(v) for v in row))
-
-
-def _project(rows: list[tuple], order: tuple[int, ...]) -> list[tuple]:
-    return [tuple(row[i] for i in order) for row in rows]
-
-
-def _gold_is_ordered(gold_sql: str) -> bool:
-    s = sig.signature(gold_sql)
-    return bool(s and s.get("has_order_by"))
-
-
-def execution_match(pred: ExecResult, gold: ExecResult, gold_sql: str) -> bool:
-    """Acurácia de execução para um par (predição, referência)."""
-    if not pred.ok or not gold.ok:
-        return False
-
-    pred_rows = pred.rows or []
-    gold_rows = gold.rows or []
-
-    if len(pred_rows) != len(gold_rows):
-        return False
-    if not gold_rows:
-        return True
-
-    n_gold = len(gold_rows[0])
-    n_pred = len(pred_rows[0])
-    if n_gold != n_pred:
-        return False
-
-    ordered = _gold_is_ordered(gold_sql)
-
-    def equal(a: list[tuple], b: list[tuple]) -> bool:
-        if ordered:
-            return a == b
-        return _as_multiset(a) == _as_multiset(b)
-
-    if equal(pred_rows, gold_rows):
-        return True
-
-    # Permutação de colunas: a consulta pode estar correta e ter projetado as
-    # colunas em outra ordem. Acima de seis colunas o custo não compensa e a
-    # comparação fica restrita à ordem direta.
-    if n_gold <= _MAX_PERMUTED_COLUMNS:
-        for order in permutations(range(n_gold)):
-            if order == tuple(range(n_gold)):
-                continue
-            if equal(_project(pred_rows, order), gold_rows):
-                return True
-
-    return False
 
 
 def exact_match(pred_sql: str, gold_sql: str) -> bool:
@@ -102,7 +42,11 @@ def structural_hit(selected_signatures: list[dict[str, Any] | None], gold_sql: s
 
 
 def summarize(rows: list[dict]) -> dict[str, Any]:
-    """Agregados por condição e idioma, prontos para as tabelas do Capítulo 5."""
+    """Agregados por condição e idioma, prontos para as tabelas do Capítulo 5.
+
+    Linha sem veredito de EX (`ex_correct` nulo: referência inválida) fica fora
+    de todos os denominadores e é contada em `referencia_invalida`.
+    """
     out: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
         key = (row["condition"], row["lang"])
@@ -118,9 +62,17 @@ def summarize(rows: list[dict]) -> dict[str, Any]:
                 "prompt_tokens": [],
                 "latency_ms": [],
                 "by_difficulty": {},
+                "referencia_invalida": 0,
+                "tempo_predicao": 0,
+                "acertos_ambos_vazios": 0,
             },
         )
+        if row.get("ex_correct") is None:
+            bucket["referencia_invalida"] += 1
+            continue
         bucket["n"] += 1
+        bucket["tempo_predicao"] += int(row.get("ex_status") == "tempo_predicao")
+        bucket["acertos_ambos_vazios"] += int(bool(row.get("ex_ambos_vazios")))
         bucket["ex"] += int(bool(row.get("ex_correct")))
         bucket["em"] += int(bool(row.get("em_correct")))
         bucket["not_executable"] += int(not row.get("exec_ok"))
@@ -153,6 +105,9 @@ def summarize(rows: list[dict]) -> dict[str, Any]:
                 d: {"n": v["n"], "ex": v["ex"] / max(1, v["n"])}
                 for d, v in sorted(bucket["by_difficulty"].items())
             },
+            "referencia_invalida": bucket["referencia_invalida"],
+            "tempo_predicao": bucket["tempo_predicao"],
+            "acertos_ambos_vazios": bucket["acertos_ambos_vazios"],
         }
     return result
 

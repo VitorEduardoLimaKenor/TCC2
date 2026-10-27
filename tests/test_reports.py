@@ -122,6 +122,41 @@ def test_stats_refuses_partial_language_pairing(tmp_path, capsys):
     assert not (cfg.work / "stats.json").exists()
 
 
+def test_invalid_reference_is_the_only_accepted_missing_verdict(tmp_path):
+    write_log(tmp_path, "ok", [row("ok", ex_correct=None, ex_status="referencia_invalida")])
+    assert report_rows(tmp_path, config_hash="cfg", run_ids=["ok"])[0]["ex_correct"] is None
+    write_log(tmp_path, "bad", [row("bad", ex_correct=None, ex_status="difere")])
+    with pytest.raises(ValueError, match="ex_correct"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["bad"])
+
+
+def test_invalid_reference_leaves_every_denominator():
+    from tcc_rag.evaluation.metrics import summarize
+
+    rows = [row(example_id="e1", ex_correct=True, ex_status="coincide", ex_ambos_vazios=True),
+            row(example_id="e2", ex_correct=False, ex_status="tempo_predicao", exec_ok=False),
+            row(example_id="e3", ex_correct=None, ex_status="referencia_invalida")]
+    resumo = summarize(rows)["C2|pt"]
+    assert (resumo["n"], resumo["ex"], resumo["not_executable"]) == (2, 0.5, 1)
+    assert resumo["referencia_invalida"] == 1
+    assert (resumo["tempo_predicao"], resumo["acertos_ambos_vazios"]) == (1, 1)
+
+
+def test_stats_drops_invalid_reference_from_every_condition(tmp_path):
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "artifacts")
+    config_path = tmp_path / "config.yaml"
+    cfg.dump(config_path)
+    rows = [row(config_hash=cfg.config_hash, condition=condition, example_id=f"e{i}",
+                ex_correct=None if i == 2 else (condition == "C3" or i == 0),
+                ex_status="referencia_invalida" if i == 2 else "coincide")
+            for condition in ("C0", "C2", "C3", "C4") for i in range(3)]
+    write_log(cfg.work / "runs", "run", rows)
+    assert app(["stats", "--config", str(config_path), "--run-id", "run"]) == 0
+    result = json.loads((cfg.work / "stats.json").read_text(encoding="utf-8"))
+    assert result["comparisons"]["C3-C2|pt"]["mcnemar"]["diff_pp"] == 50.0
+
+
 def test_mcnemar_known_exact_probability_and_stratified_paired_bootstrap():
     from tcc_rag.evaluation.stats import mcnemar_exact, paired_bootstrap_diff
 

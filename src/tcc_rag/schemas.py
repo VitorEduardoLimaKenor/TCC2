@@ -146,3 +146,5 @@ class ExecResult:
     rows: list[tuple] | None = None
     error: str | None = None
     timed_out: bool = False
+    truncated: bool = False
+    """Havia mais linhas que o limite pedido; `rows` traz só as primeiras."""

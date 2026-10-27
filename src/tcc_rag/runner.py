@@ -9,7 +9,8 @@ que ~3.000 gerações precisam caber numa sessão de GPU:
 2. cada condição monta **todos** os seus prompts antes de gerar, e gera em um
    único lote, o que permite ao vLLM manter a GPU ocupada;
 3. o resultado da consulta de referência é cacheado por (banco, SQL), porque
-   ele se repete em todas as cinco condições e nos dois idiomas.
+   ele se repete em todas as cinco condições e nos dois idiomas (em
+   `evaluation.ex_oficial`, que decide o acerto pelo avaliador oficial).
 """
 
 from __future__ import annotations
@@ -24,13 +25,14 @@ from tqdm import tqdm
 from .config import ExperimentConfig
 from .data.spider import DbSchema
 from .evaluation import metrics
+from .evaluation.ex_oficial import AvaliadorEX
 from .evaluation.sandbox import Sandbox
 from .generation.llm import Backend
 from .generation.prompt import build_draft_prompt, build_prompt
 from .logging_io import RunLog
 from .data.normalize import extract_sql
 from .retrieval.selectors import DemoSelector
-from .schemas import Demo, ExecResult, TestItem
+from .schemas import Demo, TestItem
 from .structure import signature as sig
 
 
@@ -55,8 +57,7 @@ class Runner:
         self.partition_digest = partition_digest
         self.split = split
         self._check_partition()
-        self.sandbox = Sandbox(cfg.sandbox)
-        self._gold_cache: dict[tuple[str, str], ExecResult] = {}
+        self.avaliador = AvaliadorEX(Sandbox(cfg.sandbox))
         self._draft_cache: dict[tuple[str, str], str] = self._load_drafts()
 
     # -------------------------------------------------- cache de rascunhos
@@ -162,16 +163,6 @@ class Runner:
             self._draft_cache[(item.example_id, item.lang)] = extract_sql(gen.text)
         self._save_drafts()
 
-    # ------------------------------------------------------------- gabarito
-
-    def _gold_result(self, item: TestItem) -> ExecResult:
-        key = (item.db_id, item.gold_sql)
-        if key not in self._gold_cache:
-            self._gold_cache[key] = self.sandbox.run(
-                self.schemas[item.db_id].sqlite_path, item.gold_sql
-            )
-        return self._gold_cache[key]
-
     # ---------------------------------------------------------------- laço
 
     def run_condition(self, items: list[TestItem], condition: str) -> int:
@@ -213,10 +204,9 @@ class Runner:
             tqdm(selections, desc=f"{condition} · avaliando", leave=False), outputs
         ):
             predicted = extract_sql(gen.text)
-            pred_result = self.sandbox.run(self.schemas[item.db_id].sqlite_path, predicted)
-            gold_result = self._gold_result(item)
-
-            ex_correct = metrics.execution_match(pred_result, gold_result, item.gold_sql)
+            veredito = self.avaliador.avaliar(
+                self.schemas[item.db_id].sqlite_path, predicted, item.gold_sql
+            )
             em_correct = metrics.exact_match(predicted, item.gold_sql)
             hit = metrics.structural_hit(
                 [d.signature for d in selection.demos], item.gold_sql
@@ -237,7 +227,7 @@ class Runner:
                     "question_raw": item.question_raw,
                     "question_delex": item.question_delex,
                     "gold_sql": item.gold_sql,
-                    "gold_exec_ok": gold_result.ok,
+                    "gold_exec_ok": veredito.situacao != "referencia_invalida",
                     "retrieved_ids": selection.candidate_ids,
                     "retrieved_scores": [round(s, 5) for s in selection.candidate_scores],
                     "selected_demo_ids": [d.uid for d in selection.demos],
@@ -253,10 +243,16 @@ class Runner:
                     "completion_tokens": gen.completion_tokens,
                     "raw_output": gen.text[:2000],
                     "generated_sql": predicted,
-                    "exec_ok": pred_result.ok,
-                    "exec_error": pred_result.error,
-                    "exec_timeout": pred_result.timed_out,
-                    "ex_correct": ex_correct,
+                    "exec_ok": veredito.pred_executou,
+                    "exec_error": veredito.erro,
+                    "exec_timeout": veredito.situacao == "tempo_predicao",
+                    "ex_correct": veredito.correto,
+                    "ex_status": veredito.situacao,
+                    "ex_avaliador": self.avaliador.identificador,
+                    "ex_ordem_importa": veredito.ordem_importa,
+                    "ex_linhas_ref": veredito.linhas_ref,
+                    "ex_linhas_pred": veredito.linhas_pred,
+                    "ex_ambos_vazios": veredito.ambos_vazios,
                     "em_correct": em_correct,
                     "select_ms": round(select_ms, 2),
                     "latency_ms": round(gen.latency_ms, 2),

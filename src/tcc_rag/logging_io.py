@@ -147,7 +147,9 @@ def report_rows(
     for row in selected:
         if any(not row.get(field) for field in ("condition", "lang", "example_id", "db_id")):
             raise ValueError("registro sem condição, idioma, exemplo ou banco")
-        if not isinstance(row.get("ex_correct"), bool):
+        if not isinstance(row.get("ex_correct"), bool) and not (
+            row.get("ex_correct") is None and row.get("ex_status") == "referencia_invalida"
+        ):
             raise ValueError("ex_correct ausente ou não booleano")
         key = (row["condition"], row["lang"], row["example_id"])
         if key in seen:

@@ -117,6 +117,9 @@ class GenerationConfig:
 class SandboxConfig:
     timeout_s: float = 15.0
     max_rows: int = 5000
+    """Sem uso desde a E02: a referência é lida inteira e a predição até uma linha
+    além da referência (ver `evaluation.ex_oficial`). Fica no arquivo para não
+    mudar o `config_hash` das configurações e dos logs já registrados."""
 
 
 @dataclass

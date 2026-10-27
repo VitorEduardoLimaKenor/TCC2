@@ -296,6 +296,10 @@ def cmd_stats(args) -> int:
     def vector(condition: str, lang: str) -> tuple[list[str], dict[str, bool], dict[str, str]]:
         ids, ok, db = [], {}, {}
         for row in rows:
+            # Referência inválida não tem veredito: o item sai de todas as
+            # condições, e o pareamento continua exigindo os mesmos IDs.
+            if row.get("ex_correct") is None:
+                continue
             if row["condition"] == condition and row["lang"] == lang:
                 ids.append(row["example_id"])
                 ok[row["example_id"]] = bool(row.get("ex_correct"))

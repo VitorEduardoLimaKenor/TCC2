@@ -1,0 +1,4 @@
+# Cópia fixada do avaliador oficial do Spider: bytes idênticos aos do commit de
+# origem, sem conversão de fim de linha. O blob de cada arquivo é conferido antes
+# do uso (evaluation/ex_oficial.py).
+src/tcc_rag/evaluation/_spider_oficial/** -text

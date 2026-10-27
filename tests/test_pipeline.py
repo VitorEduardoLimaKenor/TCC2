@@ -17,11 +17,10 @@ from tcc_rag.data import leakage as leak
 from tcc_rag.data import partition as part
 from tcc_rag.data.delex import delexicalize
 from tcc_rag.data.normalize import canonicalize, extract_sql, family_id, is_read_only
-from tcc_rag.evaluation.metrics import execution_match
 from tcc_rag.evaluation.sandbox import Sandbox
 from tcc_rag.evaluation.stats import difference_in_differences, mcnemar_exact, paired_bootstrap_diff
 from tcc_rag.generation.prompt import build_prompt
-from tcc_rag.schemas import Demo, Example, ExecResult
+from tcc_rag.schemas import Demo, Example
 from tcc_rag.structure import signature as sig
 
 
@@ -232,49 +231,60 @@ def test_sandbox_executa_leitura(banco):
     assert resultado.rows == [("Ana",), ("Bruno",), ("Célia",)]
 
 
-def test_sandbox_rejeita_escrita(banco):
-    resultado = Sandbox(SandboxConfig()).run(banco, "DELETE FROM aluno")
-    assert not resultado.ok
-    assert "leitura" in (resultado.error or "")
+def _contagem(banco: str) -> int:
+    conn = sqlite3.connect(banco)
+    try:
+        return conn.execute("SELECT count(*) FROM aluno").fetchone()[0]
+    finally:
+        conn.close()
 
 
-def test_sandbox_rejeita_multiplas_instrucoes(banco):
-    resultado = Sandbox(SandboxConfig()).run(banco, "SELECT 1; DROP TABLE aluno")
+@pytest.mark.parametrize("sql", [
+    "DELETE FROM aluno",
+    "UPDATE aluno SET nota = 0",
+    "DROP TABLE aluno",
+    "SELECT 1; DROP TABLE aluno",
+    "PRAGMA query_only = OFF",
+])
+def test_sandbox_nao_escreve(banco, sql):
+    resultado = Sandbox(SandboxConfig()).run(banco, sql)
     assert not resultado.ok
+    assert _contagem(banco) == 3
+
+
+def test_sandbox_nega_attach(banco, tmp_path):
+    alvo = tmp_path / "outro.sqlite"
+    resultado = Sandbox(SandboxConfig()).run(banco, f"ATTACH DATABASE '{alvo}' AS x")
+    assert not resultado.ok
+    assert not alvo.exists()
 
 
 def test_sandbox_nao_altera_o_banco(banco):
     Sandbox(SandboxConfig()).run(banco, "SELECT * FROM aluno")
-    conn = sqlite3.connect(banco)
-    assert conn.execute("SELECT count(*) FROM aluno").fetchone()[0] == 3
-    conn.close()
+    assert _contagem(banco) == 3
 
 
-# -------------------------------------------------------------- métricas
+def test_sandbox_sinaliza_linhas_alem_do_limite(banco):
+    sandbox = Sandbox(SandboxConfig())
+    cortado = sandbox.run(banco, "SELECT id FROM aluno ORDER BY id", limite=2)
+    assert cortado.ok and cortado.truncated and cortado.rows == [(1,), (2,)]
+    exato = sandbox.run(banco, "SELECT id FROM aluno ORDER BY id", limite=3)
+    assert exato.ok and not exato.truncated and len(exato.rows) == 3
+    inteiro = sandbox.run(banco, "SELECT id FROM aluno")
+    assert inteiro.ok and not inteiro.truncated and len(inteiro.rows) == 3
 
 
-def test_execucao_tolera_ordem_quando_gabarito_nao_ordena():
-    pred = ExecResult(ok=True, rows=[("b",), ("a",)])
-    gold = ExecResult(ok=True, rows=[("a",), ("b",)])
-    assert execution_match(pred, gold, "SELECT nome FROM t")
+def test_sandbox_preserva_valores(banco):
+    # Sem arredondamento e com BLOB intacto: a comparação oficial vê os valores
+    # exatamente como o SQLite os devolve.
+    resultado = Sandbox(SandboxConfig()).run(banco, "SELECT 0.1 + 0.2, X'00FF10', 7, NULL")
+    assert resultado.rows == [(0.1 + 0.2, b"\x00\xff\x10", 7, None)]
 
 
-def test_execucao_exige_ordem_quando_gabarito_ordena():
-    pred = ExecResult(ok=True, rows=[("b",), ("a",)])
-    gold = ExecResult(ok=True, rows=[("a",), ("b",)])
-    assert not execution_match(pred, gold, "SELECT nome FROM t ORDER BY nome")
-
-
-def test_execucao_tolera_permutacao_de_colunas():
-    pred = ExecResult(ok=True, rows=[(9.0, "Ana")])
-    gold = ExecResult(ok=True, rows=[("Ana", 9.0)])
-    assert execution_match(pred, gold, "SELECT nome, nota FROM aluno")
-
-
-def test_execucao_falha_com_consulta_invalida():
-    pred = ExecResult(ok=False, error="syntax error")
-    gold = ExecResult(ok=True, rows=[("a",)])
-    assert not execution_match(pred, gold, "SELECT nome FROM t")
+def test_sandbox_interrompe_consulta_sem_fim(banco):
+    infinita = "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r) SELECT count(*) FROM r"
+    resultado = Sandbox(SandboxConfig(timeout_s=2.0)).run(banco, infinita)
+    assert not resultado.ok and resultado.timed_out
 
 
 # ------------------------------------------------------------ estatística
