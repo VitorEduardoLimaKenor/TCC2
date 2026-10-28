@@ -137,6 +137,16 @@ tcc-rag evaluate --config configs/colab.yaml --runs-dir /content/drive/MyDrive/t
   do diretório do Qdrant. `run` e `sweep` recusam um índice sem ela ou
   construído com outro pool; nesse caso, rode `tcc-rag index`.
 
+### O que chega ao prompt (E05)
+
+`selected_demo_ids` é a seleção; `prompt_demo_ids` são as demonstrações que
+entraram no texto, na ordem do prompt, e `prompt_demos_removidas` as que o
+orçamento de contexto cortou (sempre a partir do fim da seleção). `k_efetivo`
+é o número que entrou, e `structural_hit` é medido sobre elas.
+`prompt_tokens_estimados` é a estimativa que decide o corte, e
+`prompt_no_limite_de_entrada` marca uma entrada que atingiu o limite do
+backend (`max_context_tokens − max_new_tokens`), onde o HF corta o fim.
+
 `evaluate` grava `summary.json` e `summary_selection.json`; `stats` grava
 `stats.json`, incluindo a seleção e as estimativas. Os valores-p são nominais,
 sem correção de multiplicidade: o plano inferencial precisa ser formalizado
