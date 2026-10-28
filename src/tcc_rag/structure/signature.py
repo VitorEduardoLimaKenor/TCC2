@@ -51,6 +51,46 @@ EMPTY: dict[str, Any] = {
 }
 
 
+_CONSULTAS = (exp.Select, exp.SetOperation)
+
+
+def _ancestral(node: exp.Expression, tipos: tuple[type, ...]) -> exp.Expression | None:
+    pai = node.parent
+    while pai is not None and not isinstance(pai, tipos):
+        pai = pai.parent
+    return pai
+
+
+def _n_subconsultas(tree: exp.Expression) -> int:
+    """Consultas aninhadas dentro de um SELECT (WHERE, FROM, HAVING, lista).
+
+    Um ramo de UNION/EXCEPT/INTERSECT não é subconsulta: o operador já entra em
+    `set_ops`. Uma subconsulta que é ela mesma uma operação de conjunto conta
+    uma vez. Até a E05, a contagem somava os SELECTs além do primeiro e os nós
+    `Subquery`, o que contava duas vezes cada subconsulta entre parênteses e
+    contava como subconsulta cada ramo de operação de conjunto.
+    """
+    return sum(
+        1
+        for consulta in tree.find_all(*_CONSULTAS)
+        if consulta is not tree and isinstance(_ancestral(consulta, _CONSULTAS), exp.Select)
+    )
+
+
+def _n_predicados(tree: exp.Expression) -> int:
+    """Predicados das cláusulas WHERE, cada um contado na cláusula a que pertence.
+
+    Até a E05, os predicados do WHERE de uma subconsulta eram contados no WHERE
+    externo e de novo no próprio.
+    """
+    return sum(
+        1
+        for where in tree.find_all(exp.Where)
+        for predicado in where.find_all(exp.Predicate)
+        if _ancestral(predicado, (exp.Where, *_CONSULTAS)) is where
+    )
+
+
 def signature(sql: str) -> dict[str, Any] | None:
     """Extrai a assinatura. Devolve None se o SQL não puder ser analisado.
 
@@ -76,11 +116,8 @@ def signature(sql: str) -> dict[str, Any] | None:
             aggs.add(name)
 
     selects = list(tree.find_all(exp.Select))
-    n_subqueries = max(0, len(selects) - 1) + len(list(tree.find_all(exp.Subquery)))
-
-    n_predicates = 0
-    for where in tree.find_all(exp.Where):
-        n_predicates += len(list(where.find_all(exp.Predicate)))
+    n_subqueries = _n_subconsultas(tree)
+    n_predicates = _n_predicados(tree)
 
     n_select_items = 0
     if selects:

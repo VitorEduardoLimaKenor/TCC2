@@ -258,6 +258,7 @@ class Runner:
         outputs = self.backend.generate(prompts)
 
         # ---- avaliação
+        limite_entrada = self.cfg.generation.max_context_tokens - self.cfg.generation.max_new_tokens
         written = 0
         for (item, selection, built, select_ms), gen in zip(
             tqdm(selections, desc=f"{condition} · avaliando", leave=False), outputs
@@ -269,8 +270,10 @@ class Runner:
             em = self.avaliador_em.avaliar(
                 schema.sqlite_path, schema.tables_entry, predicted, item.gold_sql
             )
+            # O acerto estrutural é medido sobre o que o modelo recebeu: as
+            # demonstrações que sobraram depois do corte por orçamento.
             hit = metrics.structural_hit(
-                [d.signature for d in selection.demos], item.gold_sql
+                [d.signature for d in built.demos], item.gold_sql
             )
 
             self.log.append(
@@ -298,6 +301,11 @@ class Runner:
                     "retrieved_ids": selection.candidate_ids,
                     "retrieved_scores": [round(s, 5) for s in selection.candidate_scores],
                     "selected_demo_ids": [d.uid for d in selection.demos],
+                    # O que entrou no texto, na ordem do prompt, e o que o
+                    # orçamento de contexto cortou (a partir do fim da seleção).
+                    "prompt_demo_ids": [d.uid for d in built.demos],
+                    "prompt_demos_removidas": [d.uid for d in built.removidas],
+                    "k_efetivo": len(built.demos),
                     "preliminary_sql": selection.preliminary_sql,
                     "parse_ok": selection.parse_ok,
                     "structural_signature": selection.signature,
@@ -312,7 +320,11 @@ class Runner:
                     "prompt_sha256": built.sha256,
                     "n_demos_used": built.n_demos_used,
                     "n_demos_dropped": built.n_demos_dropped,
+                    "prompt_tokens_estimados": built.estimated_tokens,
                     "prompt_tokens": gen.prompt_tokens,
+                    # O backend HF corta a entrada em max_context_tokens -
+                    # max_new_tokens; no limite, o fim do prompt pode ter sido perdido.
+                    "prompt_no_limite_de_entrada": gen.prompt_tokens >= limite_entrada,
                     "completion_tokens": gen.completion_tokens,
                     "raw_output": gen.text[:2000],
                     "generated_sql": predicted,

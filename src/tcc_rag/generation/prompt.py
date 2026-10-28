@@ -13,7 +13,7 @@ condições, só o bloco de demonstrações mudou.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..schemas import Demo
 
@@ -43,6 +43,10 @@ class BuiltPrompt:
     n_demos_used: int
     n_demos_dropped: int
     estimated_tokens: int
+    demos: list[Demo] = field(default_factory=list)
+    """As demonstrações que entraram no texto, na ordem em que aparecem."""
+    removidas: list[Demo] = field(default_factory=list)
+    """As cortadas pelo orçamento de contexto, na ordem da seleção."""
 
 
 def _estimate_tokens(text: str) -> int:
@@ -98,6 +102,8 @@ def build_prompt(
                 n_demos_used=len(used),
                 n_demos_dropped=dropped,
                 estimated_tokens=tokens,
+                demos=list(used),
+                removidas=list(demos[len(used):]),
             )
         used.pop()
         dropped += 1
