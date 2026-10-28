@@ -32,7 +32,8 @@ def table_by_difficulty(summary: dict, lang: str = "pt") -> str:
         _HEADER,
         "\\begin{table}[H]",
         "\\centering",
-        "\\caption{Acurácia de execução em português brasileiro por nível de dificuldade.}",
+        "\\caption{Acurácia de execução em português brasileiro por nível de dificuldade "
+        "(classificação oficial do Spider).}",
         "\\footnotesize",
         "\\begin{tabular}{l|c|c|c|c|c|c}",
         "\\hline",

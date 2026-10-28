@@ -19,6 +19,9 @@ dependencies = [
     # Pinado: o avaliador oficial de EX (evaluation/_spider_oficial) remove
     # DISTINCT a partir dos tokens deste parser.
     "sqlparse==0.6.0",
+    # Pinado: o EM e a dificuldade oficiais (evaluation/_spider_oficial/process_sql.py)
+    # tokenizam com nltk.word_tokenize, que também exige o modelo punkt_tab.
+    "nltk==3.9.4",
     "qdrant-client>=1.9",
     "sentence-transformers>=3.0",
     "numpy>=1.26",

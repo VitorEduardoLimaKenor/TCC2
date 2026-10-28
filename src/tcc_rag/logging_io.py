@@ -142,6 +142,11 @@ def report_rows(
     for field in ("config_hash", "partition_digest", "split"):
         if len({row[field] for row in selected}) != 1:
             raise ValueError(f"não é permitido combinar logs com {field} diferentes")
+    # O EM oficial existe a partir da E03. Combinar linhas com e sem ele faria o
+    # denominador do EM mudar de item para item sem aviso.
+    if len({"em_status" in row for row in selected}) != 1:
+        raise ValueError("não é permitido combinar linhas com e sem EM oficial; "
+                         "reavalie os logs anteriores à E03")
     seen = set()
     databases = {}
     for row in selected:
@@ -151,6 +156,10 @@ def report_rows(
             row.get("ex_correct") is None and row.get("ex_status") == "referencia_invalida"
         ):
             raise ValueError("ex_correct ausente ou não booleano")
+        if "em_status" in row and not isinstance(row.get("em_oficial"), bool) and not (
+            row.get("em_oficial") is None and row["em_status"] == "referencia_nao_analisavel"
+        ):
+            raise ValueError("em_oficial ausente ou não booleano")
         key = (row["condition"], row["lang"], row["example_id"])
         if key in seen:
             raise ValueError(f"observação duplicada entre os logs selecionados: {key}")

@@ -102,6 +102,15 @@ def universo(tmp_path: Path):
         sqlite_path=str(db_path),
         n_tables=2,
         n_columns=7,
+        tables_entry={
+            "db_id": "escola",
+            "table_names_original": ["aluno", "nota"],
+            "column_names_original": [
+                [-1, "*"], [0, "id"], [0, "nome"], [0, "nota"], [0, "turma"],
+                [1, "id"], [1, "aid"], [1, "valor"],
+            ],
+            "foreign_keys": [[6, 1]],
+        },
     )
     return exemplos, {"escola": schema}, tmp_path
 
@@ -160,6 +169,25 @@ def test_pipeline_completo(universo):
     # C4 é a única que produz consulta preliminar.
     assert all(r["preliminary_sql"] is None for r in por_condicao["C2"])
     assert all(r["preliminary_sql"] is not None for r in por_condicao["C4"])
+
+    # Métricas oficiais e medidas próprias saem com nomes distintos. O gerador
+    # falso devolve uma consulta sem FROM, que o analisador oficial recusa; a
+    # referência com apelido sem AS também é recusada por ele.
+    from tcc_rag.evaluation import em_oficial
+
+    sem_as = {r["example_id"] for r in linhas if " aluno a JOIN" in r["gold_sql"]}
+    for r in linhas:
+        assert "em_correct" not in r and "difficulty" not in r
+        assert r["em_avaliador"].startswith("spider-oficial evaluation.eval_exact_match")
+        assert isinstance(r["em_canonico_proprio"], bool)
+        assert r["dificuldade_aprox"] == "medium"
+        if r["example_id"] in sem_as:
+            assert r["em_status"] == em_oficial.REFERENCIA_NAO_ANALISAVEL
+            assert r["em_oficial"] is None and r["dificuldade_oficial"] is None
+        else:
+            assert r["em_status"] == em_oficial.PREDICAO_NAO_ANALISAVEL
+            assert r["em_oficial"] is False
+            assert r["dificuldade_oficial"] in em_oficial.NIVEIS
 
     # A recuperação nunca devolve item de fora do pool nem de outro idioma.
     uids = {d.uid: d for d in pool}
@@ -351,3 +379,18 @@ def test_varredura_percorre_a_grade_e_reaproveita_rascunhos(universo):
     assert "hit@k" in render(linhas)
 
     index.close()
+
+
+def test_recusa_esquema_sem_tables_json(universo):
+    """Sem a entrada do tables.json não há mapa de chaves estrangeiras, e o EM
+    oficial sairia diferente. A execução recusa começar, antes de gerar."""
+    from dataclasses import replace
+
+    exemplos, schemas, tmp_path = universo
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "art6")
+    cfg.generation.backend = "dummy"
+    sem_tabela = {"escola": replace(schemas["escola"], tables_entry=None)}
+    with pytest.raises(RuntimeError, match="tables.json"):
+        Runner(cfg, DummyBackend(cfg.generation), None, sem_tabela,
+               RunLog(tmp_path / "x.jsonl"), "r1")

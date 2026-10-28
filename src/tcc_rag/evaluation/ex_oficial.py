@@ -49,9 +49,13 @@ from .sandbox import Sandbox
 COMMIT = "e97acc546ecbee8fa27fa8dbf025ef61493a876c"
 REPOSITORIO = "https://github.com/taoyds/test-suite-sql-eval"
 _PASTA = Path(__file__).with_name("_spider_oficial")
+# Todos os arquivos da cópia são conferidos a cada carga, inclusive os do EM
+# oficial (`em_oficial`), que importa `exec_eval` por meio do `evaluation.py`.
 _BLOBS = {
     "exec_eval.py": "9bc34ba75eff4446223248fefb99fc429b7d23e7",
     "parse.py": "5271f5f86c9de2e0171cad8c690d7a885752f7e0",
+    "evaluation.py": "fae509c6c3afe60635e0ae9971c2204be7637005",
+    "process_sql.py": "fd93ea287dd80f7518c995767917a4cc1012d626",
 }
 
 COINCIDE = "coincide"

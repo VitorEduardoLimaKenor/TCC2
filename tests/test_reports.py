@@ -166,3 +166,70 @@ def test_mcnemar_known_exact_probability_and_stratified_paired_bootstrap():
     a, b = [True, True, False, False], [False, False, True, True]
     ci = paired_bootstrap_diff(a, b, ["db1", "db1", "db2", "db2"], resamples=100)
     assert ci.point == ci.low == ci.high == 0.0
+
+
+def em(run_id="run", **changes):
+    """Linha no formato a partir da E03, com EM e dificuldade oficiais."""
+    return row(run_id, **{"em_oficial": True, "em_status": "coincide", "em_canonico_proprio": False,
+                  "dificuldade_oficial": "easy", "dificuldade_aprox": "medium", **changes})
+
+
+def test_summary_separates_official_em_from_own_measure():
+    from tcc_rag.evaluation.metrics import summarize
+
+    rows = [em(example_id="e1"),
+            em(example_id="e2", em_oficial=False, em_status="predicao_nao_analisavel",
+               em_canonico_proprio=True, dificuldade_oficial="extra"),
+            em(example_id="e3", em_oficial=None, em_status="referencia_nao_analisavel",
+               dificuldade_oficial=None)]
+    resumo = summarize(rows)["C2|pt"]
+    assert (resumo["em_oficial"], resumo["em_n"]) == (0.5, 2)
+    assert resumo["em_referencia_nao_analisavel"] == 1
+    assert resumo["em_predicao_nao_analisavel"] == 1
+    assert resumo["sem_em_oficial"] == 0
+    assert resumo["em_canonico_proprio"] == 1 / 3
+    assert set(resumo["by_difficulty"]) == {"easy", "extra", "nao_classificada"}
+    assert "em" not in resumo
+
+
+def test_summary_of_old_log_has_no_official_em_and_no_silent_substitute():
+    from tcc_rag.evaluation.metrics import summarize
+
+    rows = [row(example_id="e1", em_correct=True, difficulty="hard"),
+            row(example_id="e2", em_correct=False, difficulty="easy")]
+    resumo = summarize(rows)["C2|pt"]
+    assert resumo["em_oficial"] is None and resumo["em_n"] == 0
+    assert resumo["sem_em_oficial"] == 2
+    assert resumo["em_canonico_proprio"] == 0.5  # `em_correct` é a mesma medida própria
+    assert set(resumo["by_difficulty"]) == {"nao_classificada"}
+
+
+def test_logs_with_and_without_official_em_cannot_be_combined(tmp_path):
+    write_log(tmp_path, "old", [row("old")])
+    write_log(tmp_path, "new", [em("new", example_id="e2")])
+    with pytest.raises(ValueError, match="EM oficial"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["old", "new"])
+    assert len(report_rows(tmp_path, config_hash="cfg", run_ids=["new"])) == 1
+
+
+def test_missing_official_em_only_with_unparseable_reference(tmp_path):
+    write_log(tmp_path, "ok", [em("ok", em_oficial=None, em_status="referencia_nao_analisavel")])
+    assert report_rows(tmp_path, config_hash="cfg", run_ids=["ok"])[0]["em_oficial"] is None
+    write_log(tmp_path, "bad", [em("bad", em_oficial=None, em_status="difere")])
+    with pytest.raises(ValueError, match="em_oficial"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["bad"])
+
+
+def test_evaluate_prints_dash_for_old_logs_and_official_em_for_new(tmp_path, capsys):
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "artifacts")
+    config_path = tmp_path / "config.yaml"
+    cfg.dump(config_path)
+    write_log(cfg.work / "runs", "old", [row("old", config_hash=cfg.config_hash)])
+    assert app(["evaluate", "--config", str(config_path), "--run-id", "old"]) == 0
+    linha = capsys.readouterr().out.splitlines()[1]
+    assert linha.split()[3] == "--"
+    write_log(cfg.work / "runs", "new", [em("new", config_hash=cfg.config_hash)])
+    assert app(["evaluate", "--config", str(config_path), "--run-id", "new"]) == 0
+    linha = capsys.readouterr().out.splitlines()[1]
+    assert linha.split()[3] == "100.0%"

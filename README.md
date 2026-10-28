@@ -24,8 +24,14 @@ py -3.12 -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -e ".[hf,dev]"      # desenvolvimento local
 pip install -e ".[vllm,dev]"    # GPU do experimento confirmatório
+python -m nltk.downloader punkt_tab   # tokenizador do EM oficial
 pytest -q
 ```
+
+O EM e a dificuldade oficiais usam o analisador do Spider, que tokeniza com
+`nltk.word_tokenize`; sem o modelo `punkt_tab`, a avaliação se recusa a começar.
+No Colab, rode o mesmo `python -m nltk.downloader punkt_tab` depois do
+`pip install`.
 
 ## Dados
 
@@ -127,6 +133,30 @@ Cada linha do log traz `ex_status`:
 
 A acurácia por *test suite* não é calculada: as suítes destiladas cobrem apenas
 os bancos do desenvolvimento do Spider, e só `car_1` e `world_1` estão no recorte.
+
+## Correspondência exata e dificuldade
+
+O EM é a *exact set match* original do Spider: `Evaluator.eval_exact_match` do
+`evaluation.py`, com o analisador `process_sql.py`, do mesmo commit e copiados
+da mesma forma. As duas consultas são comparadas cláusula a cláusula, como
+conjuntos, sem valores literais, sem DISTINCT e com as chaves estrangeiras do
+`tables.json` unificadas. A dificuldade é `Evaluator.eval_hardness` sobre a
+referência: `easy`, `medium`, `hard` ou `extra`.
+
+| `em_status` | Significado | `em_oficial` |
+|---|---|---|
+| `coincide` | as duas consultas coincidem em todos os componentes | `true` |
+| `difere` | algum componente difere (`em_componentes_divergentes` diz qual) | `false` |
+| `predicao_nao_analisavel` | o analisador oficial recusa a predição, comparada então com a consulta vazia oficial | `false` |
+| `erro_comparacao` | a comparação falha depois de analisadas as duas consultas | `false` |
+| `referencia_nao_analisavel` | o analisador recusa a referência; o item sai do denominador do EM e fica sem dificuldade oficial | `null` |
+
+As medidas próprias continuam no log, com nomes que não se confundem com as
+oficiais: `em_canonico_proprio`, a igualdade das formas canônicas que definem
+as famílias da partição, e `dificuldade_aprox`, a faixa estimada pela
+assinatura estrutural (o campo `difficulty` do manifesto). Logs anteriores à
+E03 as gravaram como `em_correct` e `difficulty` e não têm EM oficial;
+`evaluate` mostra "--" no EM desses logs e recusa misturá-los com logs novos.
 
 ## Ordem de trabalho
 

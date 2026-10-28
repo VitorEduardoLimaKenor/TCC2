@@ -274,11 +274,14 @@ def cmd_evaluate(args) -> int:
     write_json(cfg.work / "summary.json", summary)
     write_json(cfg.work / "summary_selection.json", _selection(rows))
 
-    print(f"{'cond|lang':<12} {'n':>5} {'EX':>7} {'EM':>7} {'n/exec':>7} "
+    # EM: oficial do Spider; "--" quando o log não o tem (anterior à E03). A
+    # correspondência canônica própria aparece separada, como "EM próp".
+    print(f"{'cond|lang':<12} {'n':>5} {'EX':>7} {'EM':>7} {'EM próp':>8} {'n/exec':>7} "
           f"{'hit@k':>7} {'fallb':>7} {'tok':>8}")
     for key, value in summary.items():
+        em = "--" if value["em_oficial"] is None else f"{value['em_oficial']*100:.1f}%"
         print(f"{key:<12} {value['n']:>5} {value['ex']*100:>6.1f}% "
-              f"{value['em']*100:>6.1f}% {value['not_executable']:>7} "
+              f"{em:>7} {value['em_canonico_proprio']*100:>7.1f}% {value['not_executable']:>7} "
               f"{value['structural_hit']*100:>6.1f}% {value['fallback_rate']*100:>6.1f}% "
               f"{value['prompt_tokens_mean']:>8.0f}")
     return 0

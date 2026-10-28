@@ -9,7 +9,7 @@ isso a serialização é determinística: ordem de tabelas e colunas preservada 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,9 @@ class DbSchema:
     sqlite_path: str
     n_tables: int
     n_columns: int
+    tables_entry: dict[str, Any] | None = field(default=None, repr=False, compare=False)
+    """Entrada do banco no `tables.json`. O EM oficial tira dela o mapa de
+    chaves estrangeiras (`evaluation.em_oficial`)."""
 
 
 def _quote(name: str) -> str:
@@ -92,6 +95,7 @@ def load_schemas(spider_root: str | Path) -> dict[str, DbSchema]:
             sqlite_path=str(root / "database" / db_id / f"{db_id}.sqlite"),
             n_tables=len(entry["table_names_original"]),
             n_columns=len(entry["column_names_original"]) - 1,
+            tables_entry=entry,
         )
     return out
 
@@ -102,6 +106,11 @@ def hardness(sig: dict[str, Any] | None) -> str:
     A regra original conta componentes da consulta analisada; aqui a contagem é
     derivada da assinatura estrutural. É uma aproximação, e o texto deve
     declará-la como tal ao estratificar os resultados.
+
+    O campo `difficulty` do manifesto vem daqui e não muda. A classificação
+    oficial (`Evaluator.eval_hardness`) é calculada na avaliação, por
+    `evaluation.em_oficial`, e vai para o log como `dificuldade_oficial`; esta
+    vai como `dificuldade_aprox`.
     """
     if not sig:
         return "unknown"

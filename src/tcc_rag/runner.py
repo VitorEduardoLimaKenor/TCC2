@@ -11,6 +11,10 @@ que ~3.000 gerações precisam caber numa sessão de GPU:
 3. o resultado da consulta de referência é cacheado por (banco, SQL), porque
    ele se repete em todas as cinco condições e nos dois idiomas (em
    `evaluation.ex_oficial`, que decide o acerto pelo avaliador oficial).
+
+Cada linha do log traz as métricas oficiais com o avaliador que as produziu
+(`ex_*`, `em_*`, `dificuldade_oficial`) e, com nomes próprios, as medidas
+aproximadas que não são oficiais (`em_canonico_proprio`, `dificuldade_aprox`).
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from tqdm import tqdm
 from .config import ExperimentConfig
 from .data.spider import DbSchema
 from .evaluation import metrics
+from .evaluation.em_oficial import AvaliadorEM
 from .evaluation.ex_oficial import AvaliadorEX
 from .evaluation.sandbox import Sandbox
 from .generation.llm import Backend
@@ -57,7 +62,14 @@ class Runner:
         self.partition_digest = partition_digest
         self.split = split
         self._check_partition()
+        sem_tabela = sorted(db for db, s in schemas.items() if s.tables_entry is None)
+        if sem_tabela:
+            raise RuntimeError(
+                "esquemas sem a entrada do tables.json, de onde o EM oficial tira as "
+                f"chaves estrangeiras: {', '.join(sem_tabela[:5])}"
+            )
         self.avaliador = AvaliadorEX(Sandbox(cfg.sandbox))
+        self.avaliador_em = AvaliadorEM()
         self._draft_cache: dict[tuple[str, str], str] = self._load_drafts()
 
     # -------------------------------------------------- cache de rascunhos
@@ -204,10 +216,11 @@ class Runner:
             tqdm(selections, desc=f"{condition} · avaliando", leave=False), outputs
         ):
             predicted = extract_sql(gen.text)
-            veredito = self.avaliador.avaliar(
-                self.schemas[item.db_id].sqlite_path, predicted, item.gold_sql
+            schema = self.schemas[item.db_id]
+            veredito = self.avaliador.avaliar(schema.sqlite_path, predicted, item.gold_sql)
+            em = self.avaliador_em.avaliar(
+                schema.sqlite_path, schema.tables_entry, predicted, item.gold_sql
             )
-            em_correct = metrics.exact_match(predicted, item.gold_sql)
             hit = metrics.structural_hit(
                 [d.signature for d in selection.demos], item.gold_sql
             )
@@ -223,7 +236,8 @@ class Runner:
                     "lang": item.lang,
                     "db_id": item.db_id,
                     "example_id": item.example_id,
-                    "difficulty": item.difficulty,
+                    "dificuldade_oficial": em.dificuldade,
+                    "dificuldade_aprox": item.difficulty,
                     "question_raw": item.question_raw,
                     "question_delex": item.question_delex,
                     "gold_sql": item.gold_sql,
@@ -253,7 +267,12 @@ class Runner:
                     "ex_linhas_ref": veredito.linhas_ref,
                     "ex_linhas_pred": veredito.linhas_pred,
                     "ex_ambos_vazios": veredito.ambos_vazios,
-                    "em_correct": em_correct,
+                    "em_oficial": em.correto,
+                    "em_status": em.situacao,
+                    "em_avaliador": self.avaliador_em.identificador,
+                    "em_componentes_divergentes": list(em.componentes_divergentes),
+                    "em_erro": em.erro,
+                    "em_canonico_proprio": metrics.em_canonico_proprio(predicted, item.gold_sql),
                     "select_ms": round(select_ms, 2),
                     "latency_ms": round(gen.latency_ms, 2),
                     "backend": self.backend.descriptor,
