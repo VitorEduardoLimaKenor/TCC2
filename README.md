@@ -102,6 +102,39 @@ pareados. Logs antigos sem `split` são recusados: sua proveniência deve ser
 recuperada do manifesto original em uma migração auditada, sem inferir o split
 apenas pelo nome do arquivo e sem alterar silenciosamente os originais.
 
+Cada seleção também exige **um único avaliador** de EX e de EM. Os logs
+anteriores à E02 (sem `ex_status` nem `ex_avaliador`) continuam legíveis, mas
+só isolados: aparecem como avaliador "próprio anterior à E02" e não se combinam
+com logs novos. Para lê-los, aponte o diretório deles:
+
+```bash
+tcc-rag evaluate --config configs/colab.yaml --runs-dir /content/drive/MyDrive/tcc/artifacts/runs --run-id sweep-C2-k4-l95-n25-92419f77
+```
+
+### Logs, retomada e caches (E04)
+
+- **Diretório:** os logs novos vão para `<work_dir>/runs-v2/`. Os de `runs/`
+  são históricos (texto provisório em inglês) e não são retomados.
+- **Nome:** o `run_id` padrão inclui o digest do conteúdo das perguntas
+  (`run`: `{nome}-{split}-{config_hash}-{conteúdo}`; `sweep`:
+  `sweep-…-{amostra}-{conteúdo}`). Trocar o texto gera outro log.
+- **Retomada:** só pula linhas com a mesma identidade (`formato_log`,
+  `config_hash`, `partition_digest`, `split`, avaliadores de EX e EM e
+  `indice_digest`) e com o mesmo `item_sha256` (pergunta, delexicalização,
+  referência e esquema). Qualquer diferença gera erro, nunca mistura. Linhas de
+  outra revisão do código geram só aviso, e cada linha registra a sua.
+- **Queda no meio da escrita:** a linha final incompleta vai para
+  `<log>.incidente-<data>.txt` ao reabrir.
+- **Rascunhos de C4:** ficam em `cache/rascunhos-v2.jsonl`, sob o hash da
+  identidade completa (configuração de geração, versões das bibliotecas,
+  idioma, *template*, pergunta, DDL e prompt). Os `drafts_*.json` antigos vão
+  para `cache/quarentena/` e não são usados.
+- **Vetores:** o cache usa `emb2_*` e inclui na chave o prefixo E5, a
+  normalização, o dispositivo, o lote e as versões das bibliotecas.
+- **Índice:** `index` grava a identidade do índice (pool e vetorizador) ao lado
+  do diretório do Qdrant. `run` e `sweep` recusam um índice sem ela ou
+  construído com outro pool; nesse caso, rode `tcc-rag index`.
+
 `evaluate` grava `summary.json` e `summary_selection.json`; `stats` grava
 `stats.json`, incluindo a seleção e as estimativas. Os valores-p são nominais,
 sem correção de multiplicidade: o plano inferencial precisa ser formalizado

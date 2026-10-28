@@ -7,14 +7,18 @@ import pytest
 from tcc_rag.cli import _paired_ids, app
 from tcc_rag.config import ExperimentConfig
 from tcc_rag.logging_io import report_rows
+from tcc_rag.pipeline import runs_dir
 
 
 def row(run_id="run", **changes):
+    """Linha sintética. Sem `ex_status`, é histórica (avaliador próprio); com ele,
+    leva o identificador do avaliador, como as linhas da E02 em diante."""
+    avaliador = {"ex_avaliador": "ex-oficial-teste"} if "ex_status" in changes else {}
     return {
         "run_id": run_id, "config_hash": "cfg", "partition_digest": "partition",
         "split": "val", "condition": "C2", "lang": "pt", "example_id": "e1",
         "db_id": "db1", "ex_correct": True, "em_correct": True,
-        "exec_ok": True, **changes,
+        "exec_ok": True, **avaliador, **changes,
     }
 
 
@@ -97,7 +101,7 @@ def test_stats_reports_c3_primary_and_preserves_original_h1(tmp_path, capsys):
     rows = [row(config_hash=cfg.config_hash, condition=condition, example_id=f"e{i}",
                 ex_correct=(condition == "C3" or i == 0))
             for condition in ("C0", "C2", "C3", "C4") for i in range(2)]
-    write_log(cfg.work / "runs", "run", rows)
+    write_log(runs_dir(cfg), "run", rows)
     assert app(["stats", "--config", str(config_path), "--run-id", "run"]) == 0
     output = capsys.readouterr().out
     assert "Comparação primária: C3 × C2" in output
@@ -116,7 +120,7 @@ def test_stats_refuses_partial_language_pairing(tmp_path, capsys):
     rows = [row(config_hash=cfg.config_hash, condition=c)
             for c in ("C0", "C2", "C3", "C4")]
     rows += [row(config_hash=cfg.config_hash, condition="C4", lang="en")]
-    write_log(cfg.work / "runs", "run", rows)
+    write_log(runs_dir(cfg), "run", rows)
     assert app(["stats", "--config", str(config_path)]) == 1
     assert "pareamento incompleto" in capsys.readouterr().err
     assert not (cfg.work / "stats.json").exists()
@@ -151,7 +155,7 @@ def test_stats_drops_invalid_reference_from_every_condition(tmp_path):
                 ex_correct=None if i == 2 else (condition == "C3" or i == 0),
                 ex_status="referencia_invalida" if i == 2 else "coincide")
             for condition in ("C0", "C2", "C3", "C4") for i in range(3)]
-    write_log(cfg.work / "runs", "run", rows)
+    write_log(runs_dir(cfg), "run", rows)
     assert app(["stats", "--config", str(config_path), "--run-id", "run"]) == 0
     result = json.loads((cfg.work / "stats.json").read_text(encoding="utf-8"))
     assert result["comparisons"]["C3-C2|pt"]["mcnemar"]["diff_pp"] == 50.0
@@ -170,7 +174,8 @@ def test_mcnemar_known_exact_probability_and_stratified_paired_bootstrap():
 
 def em(run_id="run", **changes):
     """Linha no formato a partir da E03, com EM e dificuldade oficiais."""
-    return row(run_id, **{"em_oficial": True, "em_status": "coincide", "em_canonico_proprio": False,
+    return row(run_id, **{"em_oficial": True, "em_status": "coincide", "em_avaliador": "em-oficial-teste",
+                          "em_canonico_proprio": False,
                   "dificuldade_oficial": "easy", "dificuldade_aprox": "medium", **changes})
 
 
@@ -225,11 +230,11 @@ def test_evaluate_prints_dash_for_old_logs_and_official_em_for_new(tmp_path, cap
     cfg.paths.work_dir = str(tmp_path / "artifacts")
     config_path = tmp_path / "config.yaml"
     cfg.dump(config_path)
-    write_log(cfg.work / "runs", "old", [row("old", config_hash=cfg.config_hash)])
+    write_log(runs_dir(cfg), "old", [row("old", config_hash=cfg.config_hash)])
     assert app(["evaluate", "--config", str(config_path), "--run-id", "old"]) == 0
     linha = capsys.readouterr().out.splitlines()[1]
     assert linha.split()[3] == "--"
-    write_log(cfg.work / "runs", "new", [em("new", config_hash=cfg.config_hash)])
+    write_log(runs_dir(cfg), "new", [em("new", config_hash=cfg.config_hash)])
     assert app(["evaluate", "--config", str(config_path), "--run-id", "new"]) == 0
     linha = capsys.readouterr().out.splitlines()[1]
     assert linha.split()[3] == "100.0%"

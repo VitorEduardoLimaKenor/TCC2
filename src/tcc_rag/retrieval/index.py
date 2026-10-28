@@ -13,7 +13,9 @@ restrita ao banco e ao idioma da pergunta de teste, e à partição do pool.
 
 from __future__ import annotations
 
+import json
 import uuid
+from pathlib import Path
 from typing import Any, Iterable
 
 import numpy as np
@@ -37,11 +39,34 @@ class DemoIndex:
         else:
             self.client = QdrantClient(url=cfg.url)
 
+    # ---------------------------------------------------------- identidade
+
+    @property
+    def identidade_path(self) -> Path:
+        """Arquivo ao lado do diretório do Qdrant, fora do que o cliente gerencia."""
+        base = Path(self.cfg.path)
+        return base.with_name(f"{base.name}.{self.cfg.collection}.identidade.json")
+
+    def gravar_identidade(self, identidade: dict) -> None:
+        """Registra com que pool e vetorizador o índice foi construído (`pipeline.identidade_indice`)."""
+        self.identidade_path.parent.mkdir(parents=True, exist_ok=True)
+        self.identidade_path.write_text(
+            json.dumps(identidade, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8"
+        )
+
+    def ler_identidade(self) -> dict | None:
+        if not self.identidade_path.exists():
+            return None
+        return json.loads(self.identidade_path.read_text(encoding="utf-8"))
+
     # ------------------------------------------------------------ criação
 
     def recreate(self) -> None:
         from qdrant_client.models import Distance, VectorParams
 
+        # A identidade antiga deixa de valer assim que a coleção é apagada; se a
+        # construção cair no meio, o índice fica sem identidade e é recusado.
+        self.identidade_path.unlink(missing_ok=True)
         distance = getattr(Distance, self.cfg.distance.upper(), Distance.COSINE)
         if self.client.collection_exists(self.cfg.collection):
             self.client.delete_collection(self.cfg.collection)

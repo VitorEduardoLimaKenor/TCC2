@@ -97,8 +97,31 @@ def _modulo(nome: str, caminho: Path) -> ModuleType:
     return modulo
 
 
+# Bibliotecas de que as regras oficiais dependem, nas versões fixadas no
+# pyproject.toml. O upstream não fixa versões; o projeto fixa, e confere em
+# tempo de execução, porque uma instalação fora do `pip install -e .` mudaria o
+# veredito sem deixar rastro no log. `remove_distinct` vem dos tokens do sqlparse.
+VERSOES_FIXADAS = {"sqlparse": "0.6.0"}
+
+
+def conferir_versoes(fixadas: dict[str, str]) -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    for pacote, esperada in fixadas.items():
+        try:
+            obtida = version(pacote)
+        except PackageNotFoundError:
+            obtida = None
+        if obtida != esperada:
+            raise RuntimeError(
+                f"o avaliador oficial exige {pacote}=={esperada} (pyproject.toml), "
+                f"mas o ambiente tem {obtida}: reinstale com `pip install -e .`"
+            )
+
+
 def carregar_oficial(pasta: Path = _PASTA) -> tuple[ModuleType, ModuleType]:
     """Carrega `exec_eval` e `parse` da cópia fixada, depois de conferi-la."""
+    conferir_versoes(VERSOES_FIXADAS)
     for arquivo, esperado in _BLOBS.items():
         obtido = blob_git(pasta / arquivo)
         if obtido != esperado:
@@ -173,7 +196,8 @@ class AvaliadorEX:
     def identificador(self) -> str:
         return (
             f"spider-oficial exec_eval test-suite-sql-eval@{COMMIT[:7]}; banco original; "
-            f"keep_distinct={self.keep_distinct}; plug_value=False"
+            f"keep_distinct={self.keep_distinct}; plug_value=False; "
+            f"sqlparse={VERSOES_FIXADAS['sqlparse']}"
         )
 
     def _executar_referencia(self, db_path: str | Path, gold: str) -> ExecResult:

@@ -144,11 +144,78 @@ def subsample(
 
 def item_set_digest(items: list[TestItem]) -> str:
     """Identifica o conjunto avaliado, para que amostras distintas não
-    compartilhem log."""
+    compartilhem log.
+
+    Só os IDs entram: a mesma amostra com outro texto de pergunta tem o mesmo
+    digest. O conteúdo é identificado por `conteudo_digest`.
+    """
     import hashlib
 
     chave = "\n".join(sorted(f"{i.example_id}:{i.lang}" for i in items))
     return hashlib.sha256(chave.encode("utf-8")).hexdigest()[:8]
+
+
+def _item_campos(item: TestItem) -> list[str]:
+    return [item.example_id, item.lang, item.db_id, item.question_raw,
+            item.question_delex, item.gold_sql]
+
+
+def item_sha256(item: TestItem, ddl: str) -> str:
+    """Conteúdo de um item como o modelo e o avaliador o veem.
+
+    Vai em cada linha do log. Na retomada, a linha gravada só é aproveitada se
+    pergunta, delexicalização, referência e esquema forem os mesmos.
+    """
+    import hashlib
+    import json
+
+    texto = json.dumps(_item_campos(item) + [ddl], ensure_ascii=False)
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+
+
+def conteudo_digest(items: list[TestItem]) -> str:
+    """Identifica o conteúdo do conjunto avaliado, e não só os IDs.
+
+    Entra no `run_id` das execuções novas: trocar o texto das perguntas (por
+    exemplo, do arquivo provisório para a tradução PT-BR) gera outro nome de
+    log, em vez de retomar o antigo.
+    """
+    import hashlib
+    import json
+
+    linhas = sorted(json.dumps(_item_campos(i), ensure_ascii=False) for i in items)
+    return hashlib.sha256("\n".join(linhas).encode("utf-8")).hexdigest()[:8]
+
+
+def runs_dir(cfg: ExperimentConfig) -> Path:
+    """Logs no formato da E04, separados dos históricos de `runs/`."""
+    from .logging_io import RUNS_DIR
+
+    return cfg.work / RUNS_DIR
+
+
+def identidade_indice(pool: list[Demo], embedder) -> dict:
+    """O que o índice de demonstrações precisa ter para servir a esta execução.
+
+    C2–C4 recebem as demonstrações do payload do Qdrant, não do manifesto. Um
+    índice construído com outro texto (o provisório, por exemplo) ou com outro
+    vetorizador entregaria demonstrações erradas sem nenhum sinal. `index`
+    grava esta identidade ao lado do índice; `run` e `sweep` a conferem.
+    """
+    import hashlib
+    import json
+
+    payloads = sorted(json.dumps(d.payload(), sort_keys=True, ensure_ascii=False) for d in pool)
+    vetorizador = getattr(embedder, "identidade", None) or {"tipo": type(embedder).__name__}
+    ident = {
+        "pool_sha256": hashlib.sha256("\n".join(payloads).encode("utf-8")).hexdigest(),
+        "n_demos": len(pool),
+        "vetorizador": vetorizador,
+    }
+    ident["digest"] = hashlib.sha256(
+        json.dumps(ident, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:16]
+    return ident
 
 
 def partition_digest(examples: list[Example]) -> str:
@@ -229,6 +296,10 @@ __all__ = [
     "VAL",
     "build_demos",
     "build_test_items",
+    "conteudo_digest",
+    "identidade_indice",
+    "item_sha256",
     "load_manifest",
     "manifest_path",
+    "runs_dir",
 ]

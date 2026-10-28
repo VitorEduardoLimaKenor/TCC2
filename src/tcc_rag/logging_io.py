@@ -5,28 +5,69 @@ estatística e a taxonomia de erros saem de consultas sobre ele — nenhum núme
 é digitado à mão.
 
 Também é o que torna a execução retomável. Em sessão de Colab ou Kaggle, cair
-na hora nove de catorze é normal; ao reiniciar, o que já existe é pulado.
+na hora nove de catorze é normal; ao reiniciar, o que já existe é pulado. Desde
+a E04, a retomada só pula uma linha com a mesma identidade: o `Runner` confere a
+identidade da execução e o `item_sha256` de cada item antes de pular.
+
+Os logs no formato da E04 vão para `runs-v2/`, separados dos históricos de
+`runs/`, cujos nomes e conteúdo não podem ser retomados nem misturados.
 """
 
 from __future__ import annotations
 
 import json
+import sys
+import time
 from pathlib import Path
 from typing import Any, Iterator
+
+RUNS_DIR = "runs-v2"
+"""Diretório dos logs novos, dentro de `paths.work_dir`."""
+
+AVALIADOR_EX_HISTORICO = "proprio-anterior-a-E02 (sem ex_status nem ex_avaliador)"
+"""Rótulo, só para leitura, dos logs gravados antes da EX oficial."""
 
 
 def record_key(row: dict[str, Any]) -> tuple:
     return (row["run_id"], row["condition"], row["lang"], row["example_id"])
 
 
+def isolar_cauda_incompleta(path: str | Path) -> Path | None:
+    """Move para um arquivo de incidente a última linha sem quebra de linha.
+
+    Uma queda no meio da escrita deixa a linha final incompleta. Se o arquivo
+    fosse reaberto em modo de acréscimo, a próxima linha seria colada nela, e a
+    leitura estrita dos relatórios recusaria o log inteiro. O trecho é
+    preservado em `<nome>.incidente-<data>.txt`, que nenhum leitor de `*.jsonl`
+    apanha.
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    dados = path.read_bytes()
+    if not dados or dados.endswith(b"\n"):
+        return None
+    corte = dados.rfind(b"\n") + 1
+    incidente = path.with_name(f"{path.name}.incidente-{time.strftime('%Y%m%dT%H%M%S')}.txt")
+    incidente.write_bytes(dados[corte:])
+    with path.open("r+b") as fh:
+        fh.truncate(corte)
+    print(f"[log] AVISO: {path.name} terminava numa linha incompleta ({len(dados) - corte} B), "
+          f"provavelmente de uma queda; o trecho foi movido para {incidente.name}",
+          file=sys.stderr)
+    return incidente
+
+
 class RunLog:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._done: set[tuple] = set()
+        self.incidente = isolar_cauda_incompleta(self.path)
+        # chave de retomada -> item_sha256 gravado (None em logs anteriores à E04)
+        self._done: dict[tuple, str | None] = {}
         if self.path.exists():
             for row in self.read():
-                self._done.add(record_key(row))
+                self._done[record_key(row)] = row.get("item_sha256")
 
     # ------------------------------------------------------------- escrita
 
@@ -36,10 +77,14 @@ class RunLog:
             return
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
-        self._done.add(key)
+        self._done[key] = row.get("item_sha256")
 
     def has(self, run_id: str, condition: str, lang: str, example_id: str) -> bool:
         return (run_id, condition, lang, example_id) in self._done
+
+    def item_sha256(self, run_id: str, condition: str, lang: str, example_id: str) -> str | None:
+        """O `item_sha256` gravado para a chave (None se ausente ou de log antigo)."""
+        return self._done.get((run_id, condition, lang, example_id))
 
     @property
     def n_done(self) -> int:
@@ -73,6 +118,31 @@ def write_json(path: str | Path, payload: Any) -> None:
 
 def read_json(path: str | Path) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def avaliador_ex(row: dict[str, Any]) -> str:
+    """O avaliador de EX de uma linha, exigindo que ele esteja identificado.
+
+    Linha com `ex_avaliador` precisa ter `ex_status` (formato da E02 em diante).
+    Linha sem os dois é histórica, do avaliador próprio, e recebe um rótulo só de
+    leitura. Qualquer outra combinação é recusada.
+    """
+    if "ex_avaliador" in row:
+        if not isinstance(row["ex_avaliador"], str) or not row["ex_avaliador"] or "ex_status" not in row:
+            raise ValueError("linha com ex_avaliador vazio ou sem ex_status")
+        return row["ex_avaliador"]
+    if "ex_status" in row:
+        raise ValueError("linha com ex_status sem ex_avaliador: avaliador de EX não identificado")
+    return AVALIADOR_EX_HISTORICO
+
+
+def avaliador_em(row: dict[str, Any]) -> str | None:
+    """O avaliador do EM oficial da linha; None em logs anteriores à E03."""
+    if "em_status" not in row:
+        return None
+    if not isinstance(row.get("em_avaliador"), str) or not row["em_avaliador"]:
+        raise ValueError("linha com em_status sem em_avaliador: avaliador de EM não identificado")
+    return row["em_avaliador"]
 
 
 def report_rows(
@@ -147,6 +217,14 @@ def report_rows(
     if len({"em_status" in row for row in selected}) != 1:
         raise ValueError("não é permitido combinar linhas com e sem EM oficial; "
                          "reavalie os logs anteriores à E03")
+    # Um único avaliador de EX e de EM por seleção. O config_hash não muda
+    # quando o avaliador muda, então não basta para separar duas definições de
+    # EX (por exemplo, as cópias migradas da E01 e um log novo).
+    for nome, extrair in (("EX", avaliador_ex), ("EM", avaliador_em)):
+        valores = {extrair(row) for row in selected}
+        if len(valores) != 1:
+            raise ValueError(f"não é permitido combinar avaliadores de {nome} diferentes: "
+                             + "; ".join(sorted(str(v) for v in valores)))
     seen = set()
     databases = {}
     for row in selected:

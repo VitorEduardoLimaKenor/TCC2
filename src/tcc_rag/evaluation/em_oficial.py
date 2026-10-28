@@ -48,7 +48,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from .ex_oficial import _PASTA, COMMIT, _modulo, carregar_oficial
+from .ex_oficial import _PASTA, COMMIT, _modulo, carregar_oficial, conferir_versoes
+
+# Versão fixada no pyproject.toml e conferida na carga, como o sqlparse da EX.
+# Na E03, os tokens oficiais saíram idênticos com nltk 3.5 e 3.9.4 no material
+# de validação; a conferência garante que o log diga a verdade sobre a versão.
+VERSOES_FIXADAS = {"nltk": "3.9.4"}
 
 COINCIDE = "coincide"
 DIFERE = "difere"
@@ -93,6 +98,7 @@ def carregar_match(pasta: Path = _PASTA) -> tuple[ModuleType, ModuleType]:
     """Carrega `evaluation` e `process_sql` da cópia fixada, depois de conferi-la."""
     exec_eval, _ = carregar_oficial(pasta)  # confere o blob de todos os arquivos
     _exigir_tokenizador()
+    conferir_versoes(VERSOES_FIXADAS)
     process_sql = _modulo("tcc_rag_spider_oficial_process_sql", pasta / "process_sql.py")
     # evaluation.py faz `from process_sql import ...` e `from exec_eval import ...`.
     # Como em `carregar_oficial`, os nomes só existem durante a carga.

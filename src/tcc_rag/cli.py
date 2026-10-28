@@ -138,10 +138,15 @@ def cmd_index(args) -> int:
     embedder = Embedder(cfg.embedding, cfg.work / "cache")
     vectors = embedder.encode([d.question_delex for d in demos], kind="passage")
 
+    from .pipeline import identidade_indice
+
     index = DemoIndex(cfg.qdrant, dimension=vectors.shape[1])
     index.recreate()
     total = index.upsert(demos, vectors)
+    identidade = identidade_indice(demos, embedder)
+    index.gravar_identidade(identidade)
     print(f"indexadas {total} demonstrações ({len(demos)//2} exemplos × 2 idiomas)")
+    print(f"identidade do índice: {identidade['digest']} ({index.identidade_path})")
     for lang in ALL_LANGUAGES:
         print(f"  {lang}: {index.count(lang=lang, partition=part.POOL)}")
     index.close()
@@ -175,19 +180,23 @@ def cmd_run(args) -> int:
 
     embedder = Embedder(cfg.embedding, cfg.work / "cache")
     index = DemoIndex(cfg.qdrant, dimension=embedder.dimension)
+    indice_digest = _indice_conferido(index, pool, embedder)
     selector = DemoSelector(cfg, index, embedder, pool)
     backend = make_backend(cfg.generation)
 
-    from .pipeline import partition_digest
+    from .pipeline import conteudo_digest, partition_digest, runs_dir
 
     digest = partition_digest(examples)
-    run_id = args.run_id or f"{cfg.name}-{split}-{cfg.config_hash}"
-    log = RunLog(cfg.work / f"runs/{run_id}.jsonl")
+    # O conteúdo entra no nome: outro texto de pergunta gera outro log, em vez
+    # de retomar o antigo.
+    run_id = args.run_id or f"{cfg.name}-{split}-{cfg.config_hash}-{conteudo_digest(items)}"
+    log = RunLog(runs_dir(cfg) / f"{run_id}.jsonl")
     print(f"run_id={run_id}  já registradas={log.n_done}  itens={len(items)}")
-    print(f"partition_digest={digest}")
+    print(f"partition_digest={digest}  indice={indice_digest}")
 
     try:
-        runner = Runner(cfg, backend, selector, schemas, log, run_id, digest, split=split)
+        runner = Runner(cfg, backend, selector, schemas, log, run_id, digest, split=split,
+                        indice_digest=indice_digest)
     except RuntimeError as exc:
         print(f"\n{exc}", file=sys.stderr)
         index.close()
@@ -214,7 +223,7 @@ def cmd_sweep(args) -> int:
     from .pipeline import partition_digest
     from .retrieval.embedder import Embedder
     from .retrieval.index import DemoIndex
-    from .pipeline import item_set_digest, subsample
+    from .pipeline import conteudo_digest, item_set_digest, subsample
     from .sweep import render, run_sweep, best
 
     examples = load_manifest(cfg)
@@ -232,6 +241,7 @@ def cmd_sweep(args) -> int:
     pool = build_demos(examples, partition=part.POOL)
     embedder = Embedder(cfg.embedding, cfg.work / "cache")
     index = DemoIndex(cfg.qdrant, dimension=embedder.dimension)
+    indice_digest = _indice_conferido(index, pool, embedder)
     backend = make_backend(cfg.generation)
 
     total = len(args.k) * len(args.lambdas) * len(args.n_candidates)
@@ -243,8 +253,11 @@ def cmd_sweep(args) -> int:
         cfg, items, pool, schemas, index, embedder, backend,
         partition_digest(examples),
         ks=args.k, lambdas=args.lambdas, ns=args.n_candidates,
-        item_digest=item_set_digest(items),
-        conditions=args.conditions, on_progress=print,
+        # Amostra e conteúdo no nome: a amostra de 150 itens com o texto
+        # provisório (`92419f77`, 22/09) e a mesma amostra em PT-BR real não
+        # compartilham log.
+        item_digest=f"{item_set_digest(items)}-{conteudo_digest(items)}",
+        conditions=args.conditions, on_progress=print, indice_digest=indice_digest,
     )
 
     write_json(cfg.work / "sweep.json", [l.as_dict() for l in linhas])
@@ -272,7 +285,7 @@ def cmd_evaluate(args) -> int:
 
     summary = metrics.summarize(rows)
     write_json(cfg.work / "summary.json", summary)
-    write_json(cfg.work / "summary_selection.json", _selection(rows))
+    write_json(cfg.work / "summary_selection.json", _selection(rows, _runs_dir(cfg, args)))
 
     # EM: oficial do Spider; "--" quando o log não o tem (anterior à E03). A
     # correspondência canônica própria aparece separada, como "EM próp".
@@ -312,7 +325,7 @@ def cmd_stats(args) -> int:
     _, c3_pt, db_map = vector("C3", "pt")
     _, c2_pt, _ = vector("C2", "pt")
     _, c4_pt, _ = vector("C4", "pt")
-    report = {"selection": _selection(rows), "comparisons": {}}
+    report = {"selection": _selection(rows, _runs_dir(cfg, args)), "comparisons": {}}
     for name, treated, label in (
         ("C3-C2|pt", c3_pt, "Comparação primária: C3 × C2 em português"),
         ("C4-C2|pt", c4_pt, "H1 original: C4 × C2 em português (comparação secundária)"),
@@ -373,25 +386,51 @@ def cmd_tables(args) -> int:
         groups.setdefault((row["condition"], row["lang"]), {})[row["example_id"]] = True
     _paired_ids(*groups.values())
     written = write_all(rows, out)
-    write_json(out / "selection.json", _selection(rows))
+    write_json(out / "selection.json", _selection(rows, _runs_dir(cfg, args)))
     for path in written:
         print(f"escrito: {path}")
     return 0
+
+
+def _indice_conferido(index, pool, embedder) -> str:
+    """Recusa um índice construído com outro pool ou vetorizador; devolve o digest."""
+    from .pipeline import identidade_indice
+
+    esperada = identidade_indice(pool, embedder)
+    gravada = index.ler_identidade()
+    if gravada != esperada:
+        motivo = ("sem identidade registrada (construído antes da E04 ou interrompido)"
+                  if gravada is None else "construído com outro pool ou outro vetorizador")
+        raise ValueError(f"índice de demonstrações {motivo}: rode `tcc-rag index` antes "
+                         f"({index.identidade_path})")
+    return esperada["digest"]
+
+
+def _runs_dir(cfg: ExperimentConfig, args) -> Path:
+    from .pipeline import runs_dir
+
+    return Path(args.runs_dir) if getattr(args, "runs_dir", None) else runs_dir(cfg)
 
 
 def _report_rows(cfg: ExperimentConfig, args) -> list[dict]:
     from .logging_io import report_rows
 
     return report_rows(
-        cfg.work / "runs", config_hash=args.config_hash or cfg.config_hash,
+        _runs_dir(cfg, args), config_hash=args.config_hash or cfg.config_hash,
         run_ids=args.run_id, split=args.split, partition_digest=args.partition_digest,
     )
 
 
-def _selection(rows: list[dict]) -> dict:
+def _selection(rows: list[dict], runs_dir: Path | None = None) -> dict:
+    from .logging_io import avaliador_em, avaliador_ex
+
     return {
         "run_ids": sorted({row["run_id"] for row in rows}),
         **{field: rows[0][field] for field in ("config_hash", "partition_digest", "split")},
+        "runs_dir": str(runs_dir) if runs_dir else None,
+        "ex_avaliador": avaliador_ex(rows[0]),
+        "em_avaliador": avaliador_em(rows[0]),
+        "codigo_revisoes": sorted({row.get("codigo_revisao") or "nao_registrada" for row in rows}),
         "n_rows": len(rows),
     }
 
@@ -450,6 +489,9 @@ def build_parser() -> argparse.ArgumentParser:
                            help="hash esperado; padrão: hash do arquivo --config")
             p.add_argument("--split", choices=["val", "test"], default=None)
             p.add_argument("--partition-digest", default=None)
+            p.add_argument("--runs-dir", default=None,
+                           help="diretório dos logs (padrão: <work_dir>/runs-v2); use para "
+                                "ler, isolados, os logs históricos de runs/")
     return parser
 
 

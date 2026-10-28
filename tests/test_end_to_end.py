@@ -33,6 +33,25 @@ from tcc_rag.schemas import Example
 DIM = 32
 
 
+class ContaGeracoes:
+    """Repassa ao backend falso e conta os prompts gerados."""
+
+    def __init__(self, backend):
+        self.backend = backend
+        self.prompts = 0
+
+    def generate(self, prompts):
+        self.prompts += len(prompts)
+        return self.backend.generate(prompts)
+
+    def count_tokens(self, text):
+        return self.backend.count_tokens(text)
+
+    @property
+    def descriptor(self):
+        return self.backend.descriptor
+
+
 class StubEmbedder:
     """Vetor determinístico derivado do texto. Sem modelo, sem download."""
 
@@ -312,18 +331,21 @@ def test_rascunhos_de_c4_persistem_entre_execucoes(universo):
 
     def executa(run_id):
         seletor = DemoSelector(cfg, index, embedder, pool)
+        backend = ContaGeracoes(DummyBackend(cfg.generation))
         runner = Runner(
-            cfg, DummyBackend(cfg.generation), seletor, schemas,
+            cfg, backend, seletor, schemas,
             RunLog(tmp_path / f"{run_id}.jsonl"), run_id, "d1",
         )
-        pendentes_antes = len(runner._draft_cache)
+        no_cache = len(runner.rascunhos)
         runner.run(itens, ("C4",))
-        return pendentes_antes
+        origens = {r["rascunho_origem"] for r in RunLog(tmp_path / f"{run_id}.jsonl").rows()}
+        return no_cache, backend.prompts, origens
 
-    # Primeira execução: cache vazio. Segunda, com outro run_id (como numa
-    # varredura de λ): o cache tem de vir cheio do disco.
-    assert executa("varredura-a") == 0
-    assert executa("varredura-b") == len(itens)
+    # Primeira execução: cache vazio, rascunhos e consultas finais gerados.
+    # Segunda, com outro run_id (como numa varredura de λ): o cache vem cheio
+    # do disco e só as consultas finais são geradas.
+    assert executa("varredura-a") == (0, 2 * len(itens), {"gerado"})
+    assert executa("varredura-b") == (len(itens), len(itens), {"cache"})
 
     index.close()
 
@@ -372,8 +394,8 @@ def test_varredura_percorre_a_grade_e_reaproveita_rascunhos(universo):
     assert all(l.n_itens == len(itens) for l in linhas)
 
     # Os rascunhos foram gerados uma vez e persistidos para toda a grade.
-    caches = list((cfg.work / "cache").glob("drafts_*.json"))
-    assert len(caches) == 1
+    cache = (cfg.work / "cache" / "rascunhos-v2.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(cache) == len(itens)
 
     assert best(linhas) in linhas
     assert "hit@k" in render(linhas)
@@ -394,3 +416,40 @@ def test_recusa_esquema_sem_tables_json(universo):
     with pytest.raises(RuntimeError, match="tables.json"):
         Runner(cfg, DummyBackend(cfg.generation), None, sem_tabela,
                RunLog(tmp_path / "x.jsonl"), "r1")
+
+
+def test_varredura_nao_reporta_log_antigo_de_outra_identidade(universo, monkeypatch):
+    """Achado A1 da revisão pré-push: uma varredura nova com o mesmo run_id
+    pulava todos os itens e reportava os números do log antigo. Agora a
+    retomada confere a identidade, e o avaliador diferente é recusado."""
+    from tcc_rag.evaluation.ex_oficial import AvaliadorEX
+    from tcc_rag.sweep import run_sweep
+
+    exemplos, schemas, tmp_path = universo
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "art7")
+    cfg.data.min_questions_per_db = 10
+    cfg.data.min_families_per_db = 3
+    cfg.qdrant.mode = "local"
+    cfg.qdrant.path = str(tmp_path / "qdrant7")
+    cfg.generation.backend = "dummy"
+
+    atribuidos = part.partition(exemplos, cfg.data)
+    pool = build_demos(atribuidos, partition=part.POOL)
+    embedder = StubEmbedder()
+    index = DemoIndex(cfg.qdrant, dimension=DIM)
+    index.recreate()
+    index.upsert(pool, embedder.encode([d.question_delex for d in pool], kind="passage"))
+    itens = build_test_items(atribuidos, partition=part.TEST, languages=("pt",))
+
+    def varrer():
+        return run_sweep(cfg, itens, pool, schemas, index, embedder, DummyBackend(cfg.generation),
+                         "d1", ks=[2], lambdas=[0.5], ns=[4], item_digest="amostra",
+                         conditions=("C2",))
+
+    primeira = varrer()
+    assert varrer()[0].n_itens == primeira[0].n_itens  # mesma identidade: retoma sem refazer
+    monkeypatch.setattr(AvaliadorEX, "identificador", property(lambda self: "avaliador antigo"))
+    with pytest.raises(RuntimeError, match="outro avaliador de EX"):
+        varrer()
+    index.close()

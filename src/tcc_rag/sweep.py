@@ -18,7 +18,8 @@ from typing import Any, Callable, Iterable, Sequence
 
 from .config import ExperimentConfig
 from .evaluation import metrics
-from .logging_io import RunLog
+from .logging_io import RunLog, report_rows
+from .pipeline import runs_dir
 from .retrieval.selectors import DemoSelector
 from .runner import Runner
 from .schemas import Demo, TestItem
@@ -73,6 +74,7 @@ def run_sweep(
     item_digest: str = "",
     conditions: Iterable[str] = ("C4",),
     on_progress: Callable[[str], None] | None = None,
+    indice_digest: str = "",
 ) -> list[SweepRow]:
     """Percorre a grade e devolve uma linha por (condição, idioma, combinação).
 
@@ -94,12 +96,19 @@ def run_sweep(
         for condicao in conditions:
             sufixo = f"-{item_digest}" if item_digest else ""
             run_id = f"sweep-{condicao}-k{k}-l{int(round(lam * 100))}-n{n}{sufixo}"
-            log = RunLog(cfg.work / f"runs/{run_id}.jsonl")
+            log = RunLog(runs_dir(cfg) / f"{run_id}.jsonl")
             Runner(
-                atual, backend, seletor, schemas, log, run_id, partition_digest, split="val"
+                atual, backend, seletor, schemas, log, run_id, partition_digest, split="val",
+                indice_digest=indice_digest,
             ).run(items, (condicao,))
 
-            for chave, valor in metrics.summarize(log.rows()).items():
+            # O mesmo caminho validado do `evaluate`: identidade, avaliador único
+            # e nenhuma linha duplicada, em vez de agregar o arquivo inteiro.
+            linhas_log = report_rows(
+                log.path.parent, config_hash=atual.config_hash, run_ids=[run_id],
+                split="val", partition_digest=partition_digest,
+            )
+            for chave, valor in metrics.summarize(linhas_log).items():
                 cond, _, lang = chave.partition("|")
                 saida.append(
                     SweepRow(

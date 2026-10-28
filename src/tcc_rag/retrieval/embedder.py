@@ -41,15 +41,42 @@ class Embedder:
         return self._model
 
     @property
+    def identidade(self) -> dict:
+        """O que, além do texto, pode mudar o vetor.
+
+        Até a E04, o cache era separado só por `modelo@revisão`, e a chave de
+        cada vetor não incluía o prefixo E5 (`query: `/`passage: `): mudar o
+        prefixo ou a normalização reaproveitaria vetores antigos. Os caches
+        antigos (`emb_<12 hex>_*.pkl`) ficam no disco, mas o nome novo não os
+        alcança; o índice é reconstruído normalmente, recalculando os vetores.
+        """
+        from ..proveniencia import VETORIZACAO, versoes
+
+        return {
+            "formato": 2,
+            "modelo": self.cfg.model,
+            "revisao": self.cfg.revision,
+            "normalize": self.cfg.normalize,
+            "device": self.cfg.device,
+            "batch_size": self.cfg.batch_size,
+            "bibliotecas": versoes(VETORIZACAO),
+        }
+
+    @property
     def _namespace(self) -> str:
-        raw = f"{self.cfg.model}@{self.cfg.revision or 'main'}"
-        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+        import json
+
+        raw = json.dumps(self.identidade, sort_keys=True)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
     def _cache_path(self, kind: str) -> Path:
-        return self.cache_dir / f"emb_{self._namespace}_{kind}.pkl"
+        return self.cache_dir / f"emb2_{self._namespace}_{kind}.pkl"
 
     def _key(self, text: str, kind: str) -> str:
-        return hashlib.sha1(f"{kind}||{text}".encode("utf-8")).hexdigest()
+        # A entrada efetiva do modelo é prefixo + texto; o prefixo vai separado
+        # para que ("a", "bc") e ("ab", "c") não colidam.
+        prefix = self.cfg.query_prefix if kind == "query" else self.cfg.passage_prefix
+        return hashlib.sha256(f"{kind}\x1f{prefix}\x1f{text}".encode("utf-8")).hexdigest()
 
     def _load(self, kind: str) -> dict[str, np.ndarray]:
         path = self._cache_path(kind)

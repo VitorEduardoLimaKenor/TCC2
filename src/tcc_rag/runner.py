@@ -15,6 +15,13 @@ que ~3.000 gerações precisam caber numa sessão de GPU:
 Cada linha do log traz as métricas oficiais com o avaliador que as produziu
 (`ex_*`, `em_*`, `dificuldade_oficial`) e, com nomes próprios, as medidas
 aproximadas que não são oficiais (`em_canonico_proprio`, `dificuldade_aprox`).
+
+Desde a E04, cada linha traz também a identidade da execução (`formato_log`,
+`config_hash`, `partition_digest`, `split`, avaliadores e `indice_digest`), o
+`item_sha256` do conteúdo do item e a proveniência (`codigo_revisao`,
+`ambiente`). A retomada só pula linhas com a mesma identidade e o mesmo
+conteúdo; o cache de rascunhos só devolve um rascunho com a mesma identidade
+completa (`generation.rascunhos`).
 """
 
 from __future__ import annotations
@@ -32,13 +39,36 @@ from .evaluation import metrics
 from .evaluation.em_oficial import AvaliadorEM
 from .evaluation.ex_oficial import AvaliadorEX
 from .evaluation.sandbox import Sandbox
+from .generation import rascunhos
 from .generation.llm import Backend
 from .generation.prompt import build_draft_prompt, build_prompt
 from .logging_io import RunLog
 from .data.normalize import extract_sql
+from .pipeline import item_sha256
+from .proveniencia import ambiente, codigo_revisao
 from .retrieval.selectors import DemoSelector
-from .schemas import Demo, TestItem
+from .schemas import Demo, RetrievalQuery, TestItem
 from .structure import signature as sig
+
+FORMATO_LOG = 2
+"""Formato das linhas a partir da E04: identidade de retomada e proveniência."""
+
+# Campos que identificam uma execução. Uma linha antiga do mesmo `run_id` com
+# qualquer um deles diferente impede a retomada.
+IDENTIDADE_RETOMADA = {
+    "formato_log": "outro formato de log (anterior à E04?)",
+    "config_hash": "outra configuração",
+    "partition_digest": "outra partição",
+    "split": "outro split",
+    "ex_avaliador": "outro avaliador de EX",
+    "em_avaliador": "outro avaliador de EM",
+    "indice_digest": "outro índice de demonstrações",
+}
+
+# Marcas que substituem pergunta e DDL ao calcular o hash do template do
+# prompt de rascunho: o que sobra é a instrução e os rótulos do idioma.
+_MARCA_PERGUNTA = "<<PERGUNTA>>"
+_MARCA_DDL = "<<DDL>>"
 
 
 class Runner:
@@ -52,6 +82,7 @@ class Runner:
         run_id: str,
         partition_digest: str = "",
         split: str = "",
+        indice_digest: str = "",
     ):
         self.cfg = cfg
         self.backend = backend
@@ -61,7 +92,7 @@ class Runner:
         self.run_id = run_id
         self.partition_digest = partition_digest
         self.split = split
-        self._check_partition()
+        self.indice_digest = indice_digest
         sem_tabela = sorted(db for db, s in schemas.items() if s.tables_entry is None)
         if sem_tabela:
             raise RuntimeError(
@@ -70,119 +101,135 @@ class Runner:
             )
         self.avaliador = AvaliadorEX(Sandbox(cfg.sandbox))
         self.avaliador_em = AvaliadorEM()
-        self._draft_cache: dict[tuple[str, str], str] = self._load_drafts()
-
-    # -------------------------------------------------- cache de rascunhos
-
-    @property
-    def _draft_path(self) -> Path:
-        """Cache em disco dos rascunhos de C4.
-
-        O rascunho depende apenas da pergunta e do modelo — não de k, de N nem
-        de λ. Sem persistência, a varredura da validação regeneraria todos eles
-        a cada combinação da grade, que é o desperdício mais caro do
-        experimento: nove combinações sobre cem itens custariam novecentas
-        gerações que já foram feitas.
-        """
-        import hashlib
-
-        chave = f"{self.cfg.generation.model}@{self.cfg.generation.revision or 'main'}"
-        marca = hashlib.sha1(chave.encode("utf-8")).hexdigest()[:12]
-        caminho = self.cfg.work / "cache" / f"drafts_{marca}.json"
-        caminho.parent.mkdir(parents=True, exist_ok=True)
-        return caminho
-
-    def _load_drafts(self) -> dict[tuple[str, str], str]:
-        import json
-
-        if not self._draft_path.exists():
-            return {}
-        try:
-            bruto = json.loads(self._draft_path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-        saida: dict[tuple[str, str], str] = {}
-        for chave, sql in bruto.items():
-            example_id, _, lang = chave.rpartition("|")
-            if example_id and lang:
-                saida[(example_id, lang)] = sql
-        return saida
-
-    def _save_drafts(self) -> None:
-        import json
-
-        payload = {f"{eid}|{lang}": sql for (eid, lang), sql in self._draft_cache.items()}
-        self._draft_path.write_text(
-            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
-        )
-
-    def _check_partition(self) -> None:
-        """Impede retomar um log produzido sob outra partição.
-
-        A retomada compara `(run_id, condição, idioma, example_id)`. Nada disso
-        muda quando a partição muda: um mesmo exemplo pode ter saído do pool e
-        entrado no teste, e as linhas antigas seriam aceitas como válidas. O
-        resultado seria uma mistura de dois experimentos, sem nenhum sinal.
-        """
-        if not self.partition_digest:
-            return
-        anteriores = {
-            row.get("partition_digest")
-            for row in self.log.read()
-            if row.get("run_id") == self.run_id
+        self.identidade = {
+            "formato_log": FORMATO_LOG,
+            "config_hash": cfg.config_hash,
+            "partition_digest": partition_digest,
+            "split": split,
+            "ex_avaliador": self.avaliador.identificador,
+            "em_avaliador": self.avaliador_em.identificador,
+            "indice_digest": indice_digest,
         }
-        anteriores.discard(None)
-        divergentes = anteriores - {self.partition_digest}
-        if divergentes:
+        self._check_identidade()
+        self.rascunhos = rascunhos.CacheRascunhos(cfg.work / "cache")
+        self._rascunhos: dict[tuple[str, str], dict[str, Any]] = {}
+        self._item_sha: dict[tuple[str, str], str] = {}
+
+    # ------------------------------------------------------------ retomada
+
+    def _check_identidade(self) -> None:
+        """Impede retomar um log produzido sob outra identidade.
+
+        A retomada pula um item quando `(run_id, condição, idioma, example_id)`
+        já está no log. Nada disso muda quando mudam a partição, a configuração,
+        o avaliador, o índice ou o texto da pergunta. Sem esta verificação, uma
+        varredura nova com o `run_id` de uma antiga pularia todos os itens e
+        reportaria os números antigos como novos. O texto de cada item é
+        conferido à parte, em `_pendentes`.
+        """
+        divergencias: dict[str, set[str]] = {}
+        revisoes: set[str] = set()
+        for row in self.log.read():
+            if row.get("run_id") != self.run_id:
+                continue
+            for campo in IDENTIDADE_RETOMADA:
+                if row.get(campo) != self.identidade[campo]:
+                    divergencias.setdefault(campo, set()).add(str(row.get(campo)))
+            if row.get("codigo_revisao"):
+                revisoes.add(row["codigo_revisao"])
+        if divergencias:
+            detalhe = "\n".join(
+                f"  - {IDENTIDADE_RETOMADA[c]}: {c} gravado {', '.join(sorted(v))}; "
+                f"atual {self.identidade[c]}"
+                for c, v in divergencias.items()
+            )
             raise RuntimeError(
-                f"o log {self.log.path.name} contém linhas de outra partição "
-                f"({', '.join(sorted(divergentes))}); a atual é "
-                f"{self.partition_digest}.\n"
-                f"Apague o arquivo ou use --run-id com outro nome. Retomar "
+                f"o log {self.log.path.name} contém linhas de outra identidade:\n{detalhe}\n"
+                f"Arquive o arquivo ou use --run-id com outro nome. Retomar "
                 f"misturaria dois experimentos."
             )
+        outras = revisoes - {codigo_revisao()}
+        if outras:
+            import sys
+
+            print(f"[retomada] AVISO: o log {self.log.path.name} tem linhas de outra revisão "
+                  f"do código ({', '.join(sorted(outras))}); a atual é {codigo_revisao()}. "
+                  "Cada linha registra a sua.", file=sys.stderr)
+
+    def _sha_do_item(self, item: TestItem) -> str:
+        chave = (item.example_id, item.lang)
+        if chave not in self._item_sha:
+            self._item_sha[chave] = item_sha256(item, self.schemas[item.db_id].ddl)
+        return self._item_sha[chave]
+
+    def _pendentes(self, items: list[TestItem], condition: str) -> list[TestItem]:
+        """Itens ainda sem linha; recusa a linha gravada sobre outro conteúdo."""
+        todo = []
+        for item in items:
+            if not self.log.has(self.run_id, condition, item.lang, item.example_id):
+                todo.append(item)
+                continue
+            gravado = self.log.item_sha256(self.run_id, condition, item.lang, item.example_id)
+            if gravado != self._sha_do_item(item):
+                raise RuntimeError(
+                    f"o log {self.log.path.name} tem {condition}/{item.lang}/{item.example_id} "
+                    f"gravado sobre outro conteúdo (item_sha256 {gravado}; atual "
+                    f"{self._sha_do_item(item)}): a pergunta, a referência ou o esquema mudou. "
+                    "Use --run-id com outro nome."
+                )
+        return todo
 
     # ------------------------------------------------------------ rascunhos
 
     def prepare_drafts(self, items: list[TestItem]) -> None:
-        """Gera em lote as consultas preliminares usadas por C4."""
-        # O seletor precisa do drafter mesmo quando o cache já está completo,
-        # senão uma execução retomada quebraria ao chegar em C4.
-        self.selector.drafter = lambda q: self._draft_cache.get((q.example_id, q.lang), "")
+        """Consultas preliminares de C4: do cache, se a identidade conferir; senão, geradas.
 
-        pending = [
-            item
-            for item in items
-            if (item.example_id, item.lang) not in self._draft_cache
-        ]
-        if not pending:
-            return
+        O rascunho não depende de k, N nem λ, e a varredura reutiliza o mesmo
+        para toda a grade. A identidade (`generation.rascunhos`) cobre modelo,
+        geração, template, pergunta, DDL e idioma; mudar qualquer um deles gera
+        o rascunho de novo. Cada linha de C4 registra a chave e a origem.
+        """
+        g = self.cfg.generation
+        pendentes = []
+        reutilizados = 0
+        for item in items:
+            chave_item = (item.example_id, item.lang)
+            if chave_item in self._rascunhos:
+                continue
+            ddl = self.schemas[item.db_id].ddl
+            prompt = build_draft_prompt(item.question_raw, ddl, item.lang, g.max_context_tokens).text
+            template = build_draft_prompt(_MARCA_PERGUNTA, _MARCA_DDL, item.lang, g.max_context_tokens).text
+            ident = rascunhos.identidade(g, item.lang, item.question_raw, ddl, prompt, template)
+            entrada = self.rascunhos.obter(rascunhos.chave(ident))
+            if entrada is None:
+                pendentes.append((item, ident, prompt))
+            else:
+                self._rascunhos[chave_item] = {**entrada, "origem": "cache"}
+                reutilizados += 1
 
-        prompts = [
-            build_draft_prompt(
-                item.question_raw,
-                self.schemas[item.db_id].ddl,
-                item.lang,
-                self.cfg.generation.max_context_tokens,
-            ).text
-            for item in pending
-        ]
+        if pendentes:
+            outputs = self.backend.generate([prompt for _, _, prompt in pendentes])
+            for (item, ident, _), gen in zip(pendentes, outputs):
+                entrada = self.rascunhos.gravar(
+                    ident, gen.text, gen.prompt_tokens, gen.completion_tokens, gen.latency_ms
+                )
+                self._rascunhos[(item.example_id, item.lang)] = {**entrada, "origem": "gerado"}
+        if pendentes or reutilizados:
+            print(f"[C4] rascunhos: {len(pendentes)} gerados, {reutilizados} do cache "
+                  "com identidade conferida")
+        self.selector.drafter = self._rascunho_sql
 
-        print(f"[C4] gerando {len(pending)} rascunhos "
-              f"({len(self._draft_cache)} já em cache)")
-        outputs = self.backend.generate(prompts)
-        for item, gen in zip(pending, outputs):
-            self._draft_cache[(item.example_id, item.lang)] = extract_sql(gen.text)
-        self._save_drafts()
+    def _rascunho_sql(self, query: RetrievalQuery) -> str:
+        entrada = self._rascunhos.get((query.example_id, query.lang))
+        if entrada is None:
+            raise RuntimeError(f"rascunho ausente para {query.example_id}/{query.lang}: "
+                               "prepare_drafts não foi chamado para este item")
+        return extract_sql(entrada["texto"])
 
     # ---------------------------------------------------------------- laço
 
     def run_condition(self, items: list[TestItem], condition: str) -> int:
-        todo = [
-            item
-            for item in items
-            if not self.log.has(self.run_id, condition, item.lang, item.example_id)
-        ]
+        todo = self._pendentes(items, condition)
         if not todo:
             return 0
 
@@ -217,6 +264,7 @@ class Runner:
         ):
             predicted = extract_sql(gen.text)
             schema = self.schemas[item.db_id]
+            rascunho = self._rascunhos.get((item.example_id, item.lang), {}) if condition == "C4" else {}
             veredito = self.avaliador.avaliar(schema.sqlite_path, predicted, item.gold_sql)
             em = self.avaliador_em.avaliar(
                 schema.sqlite_path, schema.tables_entry, predicted, item.gold_sql
@@ -228,9 +276,14 @@ class Runner:
             self.log.append(
                 {
                     "run_id": self.run_id,
+                    "formato_log": FORMATO_LOG,
                     "config_hash": self.cfg.config_hash,
                     "partition_digest": self.partition_digest,
                     "split": self.split,
+                    "indice_digest": self.indice_digest,
+                    "item_sha256": self._sha_do_item(item),
+                    "codigo_revisao": codigo_revisao(),
+                    "ambiente": ambiente(),
                     "timestamp": time.time(),
                     "condition": condition,
                     "lang": item.lang,
@@ -249,6 +302,12 @@ class Runner:
                     "parse_ok": selection.parse_ok,
                     "structural_signature": selection.signature,
                     "used_fallback": selection.used_fallback,
+                    # Só em C4: de onde veio o rascunho e quanto ele custou ao ser gerado.
+                    "rascunho_chave": rascunho.get("chave"),
+                    "rascunho_origem": rascunho.get("origem"),
+                    "rascunho_prompt_tokens": rascunho.get("prompt_tokens"),
+                    "rascunho_completion_tokens": rascunho.get("completion_tokens"),
+                    "rascunho_latency_ms": rascunho.get("latency_ms"),
                     "structural_hit": hit,
                     "prompt_sha256": built.sha256,
                     "n_demos_used": built.n_demos_used,
