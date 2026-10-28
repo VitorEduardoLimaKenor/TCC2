@@ -30,6 +30,8 @@ pytest -q
 
 O EM e a dificuldade oficiais usam o analisador do Spider, que tokeniza com
 `nltk.word_tokenize`; sem o modelo `punkt_tab`, a avaliação se recusa a começar.
+O modelo não tem número de versão: o SHA-256 dos arquivos carregados entra no
+identificador do EM (`em_avaliador`), e um modelo diferente do usado na E03 gera aviso.
 No Colab, rode o mesmo `python -m nltk.downloader punkt_tab` depois do
 `pip install`.
 
@@ -179,7 +181,7 @@ referência: `easy`, `medium`, `hard` ou `extra`.
 | `em_status` | Significado | `em_oficial` |
 |---|---|---|
 | `coincide` | as duas consultas coincidem em todos os componentes | `true` |
-| `difere` | algum componente difere (`em_componentes_divergentes` diz qual) | `false` |
+| `difere` | algum componente difere (`em_componentes_divergentes` diz qual; `from` quando só as tabelas do FROM diferem) | `false` |
 | `predicao_nao_analisavel` | o analisador oficial recusa a predição, comparada então com a consulta vazia oficial | `false` |
 | `erro_comparacao` | a comparação falha depois de analisadas as duas consultas | `false` |
 | `referencia_nao_analisavel` | o analisador recusa a referência; o item sai do denominador do EM e fica sem dificuldade oficial | `null` |

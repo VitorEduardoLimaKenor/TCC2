@@ -421,3 +421,17 @@ def test_indice_sem_identidade_ou_desatualizado_e_recusado(tmp_path):
     index.recreate()
     assert index.ler_identidade() is None
     index.close()
+
+
+def test_relatorio_recusa_misturar_avaliadores_de_em(tmp_path):
+    """B2 da revisão da E03: dois logs do EM oficial com identificadores
+    diferentes (por exemplo, outro nltk ou outro punkt_tab) não se combinam."""
+    base = {"ex_status": "coincide", "ex_avaliador": "oficial", "em_status": "coincide", "em_oficial": True}
+    _gravar(tmp_path, "a", [_linha("a", **base, em_avaliador="em nltk=3.9.4")])
+    _gravar(tmp_path, "b", [_linha("b", example_id="e2", **base, em_avaliador="em nltk=3.10.4")])
+    assert len(report_rows(tmp_path, config_hash="cfg", run_ids=["a"])) == 1
+    with pytest.raises(ValueError, match="avaliadores de EM diferentes"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["a", "b"])
+    _gravar(tmp_path, "c", [_linha("c", example_id="e3", **base, em_avaliador="")])
+    with pytest.raises(ValueError, match="em_status sem em_avaliador"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["c"])

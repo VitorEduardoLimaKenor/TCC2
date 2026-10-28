@@ -248,3 +248,22 @@ def test_identificador_registra_versao_e_regras():
     ident = AvaliadorEM().identificador
     assert ex_oficial.COMMIT[:7] in ident and f"nltk={nltk.__version__}" in ident
     assert "sem valores" in ident and "sem DISTINCT" in ident
+
+
+def test_divergencia_so_no_from_e_registrada(banco):
+    """B4 da revisão da E03: a tabela a mais no FROM é comparada fora da
+    comparação parcial, e o diagnóstico ficava vazio."""
+    veredito = AvaliadorEM().avaliar(
+        banco, TABELA,
+        "SELECT T1.nome FROM aluno AS T1 JOIN avaliacao AS T2 ON T1.id = T2.aluno_id",
+        "SELECT nome FROM aluno",
+    )
+    assert (veredito.correto, veredito.situacao) == (False, "difere")
+    assert veredito.componentes_divergentes == ("from",)
+
+
+def test_identificador_registra_o_sha_do_punkt_tab():
+    """B1 da revisão da E03: o modelo do tokenizador não tem versão; o SHA dos
+    arquivos carregados entra no identificador."""
+    assert em_oficial.sha_punkt_tab() == em_oficial.PUNKT_TAB_E03
+    assert f"punkt_tab={em_oficial.PUNKT_TAB_E03[:16]}" in AvaliadorEM().identificador

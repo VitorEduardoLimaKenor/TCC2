@@ -76,6 +76,37 @@ class VereditoEM:
     erro: str | None = None
 
 
+PUNKT_TAB_E03 = "87b7437941fb4df13edcd8cad64ff370f548f8c3e9503a795e05bef42bf34bdc"
+"""`sha_punkt_tab()` do modelo usado na verificação da E03 (28/10/2026)."""
+
+
+@functools.lru_cache(maxsize=1)
+def sha_punkt_tab() -> str:
+    """SHA-256 dos arquivos de `punkt_tab/english/` carregados, concatenados em ordem de nome.
+
+    O `nltk.downloader` baixa a versão corrente do modelo, que não tem número de
+    versão. O SHA vai no identificador do EM; um modelo diferente muda o
+    identificador, e o `report_rows` recusa misturar as duas avaliações. Se o
+    modelo não estiver numa pasta comum (só o zip), devolve "nao-verificado".
+    """
+    import hashlib
+    import sys
+
+    import nltk
+
+    pasta = Path(str(nltk.data.find("tokenizers/punkt_tab/english/")))
+    if not pasta.is_dir():
+        return "nao-verificado"
+    sha = hashlib.sha256()
+    for arquivo in sorted(p for p in pasta.iterdir() if p.is_file()):
+        sha.update(arquivo.read_bytes())
+    valor = sha.hexdigest()
+    if valor != PUNKT_TAB_E03:
+        print(f"[EM] AVISO: o punkt_tab carregado ({valor[:16]}) não é o da verificação da E03 "
+              f"({PUNKT_TAB_E03[:16]}); o identificador do EM registra a diferença.", file=sys.stderr)
+    return valor
+
+
 def _exigir_tokenizador() -> str:
     """Confere o nltk e o modelo `punkt_tab`; devolve a versão do nltk."""
     try:
@@ -152,7 +183,8 @@ class AvaliadorEM:
 
         return (
             f"spider-oficial evaluation.eval_exact_match test-suite-sql-eval@{COMMIT[:7]}; "
-            f"sem valores; sem DISTINCT; chaves estrangeiras do tables.json; nltk={nltk.__version__}"
+            f"sem valores; sem DISTINCT; chaves estrangeiras do tables.json; nltk={nltk.__version__}; "
+            f"punkt_tab={sha_punkt_tab()[:16]}"
         )
 
     def _esquema(self, db_path: str | Path):
@@ -226,6 +258,11 @@ class AvaliadorEM:
             nome for nome, nota_parcial in avaliador.partial_scores.items() if nota_parcial["f1"] != 1
         )
         correto = bool(nota)
+        if not correto and not divergentes:
+            # `eval_exact_match` compara as tabelas do FROM fora da comparação
+            # parcial (evaluation.py, linhas 386–389): se nada mais divergiu,
+            # foram elas.
+            divergentes = ("from",)
         if erro:
             situacao = PREDICAO_NAO_ANALISAVEL
         else:
