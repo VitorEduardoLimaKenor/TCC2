@@ -137,6 +137,34 @@ tcc-rag evaluate --config configs/colab.yaml --runs-dir /content/drive/MyDrive/t
   do diretório do Qdrant. `run` e `sweep` recusam um índice sem ela ou
   construído com outro pool; nesse caso, rode `tcc-rag index`.
 
+### Identidade de geração e de avaliação; reavaliação
+
+A identidade de uma execução tem duas partes (`logging_io`). A de geração
+(`formato_log`, `config_hash`, `partition_digest`, `split`, `indice_digest`,
+`template_sha256`) diz o que o modelo recebeu; a de avaliação (`ex_avaliador`,
+`em_avaliador`), como a saída foi julgada. As duas são conferidas na retomada e
+entre os logs combinados num relatório. Se só a de avaliação mudou (outra
+versão do avaliador, outro `punkt_tab`), não é preciso gerar de novo:
+
+```bash
+tcc-rag reavaliar --config configs/colab.yaml --run-id <log>   # CPU; grava <log>-reav-<marca>
+```
+
+O `indice_digest` vem do conteúdo do índice (payloads e vetores arredondados a
+1e-6) e do que define o espaço das consultas (modelo, revisão, normalização,
+prefixos); as versões das bibliotecas ficam só como proveniência. No teste
+(`split=test`), o relatório exige uma única revisão do código, commitada e
+limpa.
+
+### Corpus PT-BR e estrato de literal traduzido
+
+As perguntas em PT-BR são a tradução de José e Cozman (2021), `Marchanjo/spider-pt`
+(CC BY-SA 4.0), sem alteração (decisão D-002). `scripts/gerar_questions_pt.py`
+gera `data/spider_pt/questions_pt.json` conferindo `db_id` e `query` item a
+item e grava a proveniência. `tcc-rag estratos` classifica os itens do
+manifesto em LT/SL pela regra pré-registrada (`data/estratos.py`) e grava
+`estratos_literais.json` à parte, sem alterar o manifesto.
+
 ### O que chega ao prompt (E05)
 
 `selected_demo_ids` é a seleção; `prompt_demo_ids` são as demonstrações que
