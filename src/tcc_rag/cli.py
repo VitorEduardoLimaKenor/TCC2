@@ -281,6 +281,40 @@ def cmd_sweep(args) -> int:
     return 0
 
 
+def cmd_estratos(args) -> int:
+    """Estrato de literal traduzido (LT/SL), pela regra pré-registrada.
+
+    Lê o manifesto e grava `estratos_literais.json` à parte, com o SHA-256 do
+    manifesto de origem. Não altera o manifesto nem a partição. Imprime só os
+    tamanhos dos estratos por partição, que dependem só do texto.
+    """
+    import hashlib
+    from collections import Counter
+
+    from .data.estratos import literais_traduzidos
+
+    cfg = _cfg(args)
+    examples = load_manifest(cfg)
+    itens = {}
+    for ex in examples:
+        lits = literais_traduzidos(ex.sql, ex.question_en, ex.question_pt)
+        itens[ex.example_id] = {"estrato": "LT" if lits else "SL", "literais": lits,
+                                "partition": ex.partition}
+    contagem = Counter(f"{v['partition']}|{v['estrato']}" for v in itens.values())
+    payload = {
+        "regra": "orquestracao/preregistro-literais-traduzidos-2026-10-28.md; tcc_rag.data.estratos",
+        "manifesto_sha256": hashlib.sha256(manifest_path(cfg).read_bytes()).hexdigest(),
+        "contagem": dict(sorted(contagem.items())),
+        "itens": itens,
+    }
+    destino = cfg.work / "estratos_literais.json"
+    write_json(destino, payload)
+    for parte in ("pool", "val", "test"):
+        print(f"{parte:<5} LT={contagem[parte + '|LT']:<4} SL={contagem[parte + '|SL']}")
+    print(f"escrito: {destino} (sha256 {hashlib.sha256(destino.read_bytes()).hexdigest()})")
+    return 0
+
+
 def cmd_reavaliar(args) -> int:
     """Recalcula EX e EM de um log já gerado, com os avaliadores atuais, num log novo.
 
@@ -511,6 +545,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("index", cmd_index, "vetoriza o pool e popula o Qdrant"),
         ("run", cmd_run, "executa as condições experimentais"),
         ("sweep", cmd_sweep, "varre a grade de k, lambda e N na validação"),
+        ("estratos", cmd_estratos, "estrato de literal traduzido (LT/SL), pré-registrado"),
         ("reavaliar", cmd_reavaliar, "recalcula EX e EM de um log com os avaliadores atuais"),
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),
         ("stats", cmd_stats, "McNemar, bootstrap e diferenças em diferenças"),
