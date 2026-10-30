@@ -54,6 +54,32 @@ class DemoIndex:
             json.dumps(identidade, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8"
         )
 
+    def vetores_sha256(self, casas: int = 6) -> str:
+        """SHA-256 dos vetores gravados, por uid, arredondados a `casas` decimais.
+
+        Lê o próprio índice: o digest descreve o que a busca vai usar, não o
+        que se esperava gravar.
+        """
+        import hashlib
+
+        import numpy as np
+
+        vetores = {}
+        offset = None
+        while True:
+            pontos, offset = self.client.scroll(
+                collection_name=self.cfg.collection, limit=512, offset=offset,
+                with_payload=["uid"], with_vectors=True,
+            )
+            for ponto in pontos:
+                vetores[ponto.payload["uid"]] = np.round(np.asarray(ponto.vector, dtype=np.float64), casas)
+            if offset is None:
+                break
+        sha = hashlib.sha256()
+        for uid in sorted(vetores):
+            sha.update(uid.encode("utf-8") + b"\x1f" + vetores[uid].tobytes())
+        return sha.hexdigest()
+
     def ler_identidade(self) -> dict | None:
         if not self.identidade_path.exists():
             return None

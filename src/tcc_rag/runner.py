@@ -26,6 +26,7 @@ completa (`generation.rascunhos`).
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -42,33 +43,89 @@ from .evaluation.sandbox import Sandbox
 from .generation import rascunhos
 from .generation.llm import Backend
 from .generation.prompt import build_draft_prompt, build_prompt
-from .logging_io import RunLog
+from .logging_io import IDENTIDADE_AVALIACAO, IDENTIDADE_GERACAO, IDENTIDADE_RETOMADA, RunLog
 from .data.normalize import extract_sql
 from .pipeline import item_sha256
-from .proveniencia import ambiente, codigo_revisao
+from .proveniencia import GERACAO, ambiente, codigo_revisao
 from .retrieval.selectors import DemoSelector
 from .schemas import Demo, RetrievalQuery, TestItem
 from .structure import signature as sig
 
-FORMATO_LOG = 2
-"""Formato das linhas a partir da E04: identidade de retomada e proveniência."""
-
-# Campos que identificam uma execução. Uma linha antiga do mesmo `run_id` com
-# qualquer um deles diferente impede a retomada.
-IDENTIDADE_RETOMADA = {
-    "formato_log": "outro formato de log (anterior à E04?)",
-    "config_hash": "outra configuração",
-    "partition_digest": "outra partição",
-    "split": "outro split",
-    "ex_avaliador": "outro avaliador de EX",
-    "em_avaliador": "outro avaliador de EM",
-    "indice_digest": "outro índice de demonstrações",
-}
+FORMATO_LOG = 3
+"""Formato das linhas. 2: E04 (identidade de retomada e proveniência).
+3: E05 e a integração PT-BR — demonstrações efetivas (`prompt_demo_ids`,
+`k_efetivo`), acerto estrutural sobre elas, assinatura corrigida, template do
+prompt na identidade e `indice_digest` pelo conteúdo. Linhas de formatos
+diferentes não se retomam nem se combinam."""
 
 # Marcas que substituem pergunta e DDL ao calcular o hash do template do
 # prompt de rascunho: o que sobra é a instrução e os rótulos do idioma.
 _MARCA_PERGUNTA = "<<PERGUNTA>>"
 _MARCA_DDL = "<<DDL>>"
+
+
+def template_prompt_sha256(max_context_tokens: int) -> str:
+    """Hash do prompt final com marcas no lugar da pergunta, do DDL e de uma
+    demonstração, nos dois idiomas: instrução, rótulos e disposição."""
+    import hashlib
+
+    marca = Demo(uid="<<DEMO>>", example_id="<<DEMO>>", db_id="", lang="", question_raw=_MARCA_PERGUNTA,
+                 question_delex=_MARCA_PERGUNTA, sql="<<SQL>>", signature={}, tables=[], columns=[],
+                 family_id="", partition="")
+    textos = [build_prompt(_MARCA_PERGUNTA, _MARCA_DDL, demos, lang, max_context_tokens).text
+              for lang in ("pt", "en") for demos in ([], [marca])]
+    return hashlib.sha256("\x1e".join(textos).encode("utf-8")).hexdigest()
+
+
+def campos_avaliacao(avaliador: AvaliadorEX, avaliador_em: AvaliadorEM, schema: DbSchema,
+                     predicted: str, gold_sql: str) -> dict[str, Any]:
+    """EX, EM e dificuldade oficiais e a medida própria de uma predição.
+
+    Os mesmos campos são gravados pela geração (`Runner`) e pela reavaliação de
+    um log (`reavaliar`), que não precisa de GPU.
+    """
+    veredito = avaliador.avaliar(schema.sqlite_path, predicted, gold_sql)
+    em = avaliador_em.avaliar(schema.sqlite_path, schema.tables_entry, predicted, gold_sql)
+    return {
+        "dificuldade_oficial": em.dificuldade,
+        "gold_exec_ok": veredito.situacao != "referencia_invalida",
+        "exec_ok": veredito.pred_executou,
+        "exec_error": veredito.erro,
+        "exec_timeout": veredito.situacao == "tempo_predicao",
+        "ex_correct": veredito.correto,
+        "ex_status": veredito.situacao,
+        "ex_avaliador": avaliador.identificador,
+        "ex_ordem_importa": veredito.ordem_importa,
+        "ex_linhas_ref": veredito.linhas_ref,
+        "ex_linhas_pred": veredito.linhas_pred,
+        "ex_ambos_vazios": veredito.ambos_vazios,
+        "em_oficial": em.correto,
+        "em_status": em.situacao,
+        "em_avaliador": avaliador_em.identificador,
+        "em_componentes_divergentes": list(em.componentes_divergentes),
+        "em_erro": em.erro,
+        "em_canonico_proprio": metrics.em_canonico_proprio(predicted, gold_sql),
+    }
+
+
+def reavaliar(linhas: list[dict[str, Any]], schemas: dict[str, DbSchema], sandbox_cfg,
+              novo_run_id: str) -> list[dict[str, Any]]:
+    """Recalcula EX e EM de linhas já geradas, com os avaliadores atuais.
+
+    Nada da geração muda: só os campos de avaliação e o `run_id`. É o caminho
+    quando o avaliador (ou o punkt_tab do EM) mudou entre sessões.
+    """
+    avaliador, avaliador_em = AvaliadorEX(Sandbox(sandbox_cfg)), AvaliadorEM()
+    saida = []
+    for linha in linhas:
+        nova = dict(linha)
+        nova.update(campos_avaliacao(avaliador, avaliador_em, schemas[linha["db_id"]],
+                                     linha["generated_sql"], linha["gold_sql"]))
+        nova["run_id"] = novo_run_id
+        nova["reavaliado_de"] = linha["run_id"]
+        nova["reavaliado_em_revisao"] = codigo_revisao()
+        saida.append(nova)
+    return saida
 
 
 class Runner:
@@ -109,6 +166,7 @@ class Runner:
             "ex_avaliador": self.avaliador.identificador,
             "em_avaliador": self.avaliador_em.identificador,
             "indice_digest": indice_digest,
+            "template_sha256": template_prompt_sha256(cfg.generation.max_context_tokens),
         }
         self._check_identidade()
         self.rascunhos = rascunhos.CacheRascunhos(cfg.work / "cache")
@@ -127,8 +185,11 @@ class Runner:
         reportaria os números antigos como novos. O texto de cada item é
         conferido à parte, em `_pendentes`.
         """
+        import sys
+
         divergencias: dict[str, set[str]] = {}
         revisoes: set[str] = set()
+        bibliotecas: set[str] = set()
         for row in self.log.read():
             if row.get("run_id") != self.run_id:
                 continue
@@ -137,12 +198,23 @@ class Runner:
                     divergencias.setdefault(campo, set()).add(str(row.get(campo)))
             if row.get("codigo_revisao"):
                 revisoes.add(row["codigo_revisao"])
+            gravadas = (row.get("ambiente") or {}).get("bibliotecas")
+            if gravadas:
+                bibliotecas.add(json.dumps({p: gravadas.get(p) for p in GERACAO}, sort_keys=True))
         if divergencias:
             detalhe = "\n".join(
                 f"  - {IDENTIDADE_RETOMADA[c]}: {c} gravado {', '.join(sorted(v))}; "
                 f"atual {self.identidade[c]}"
                 for c, v in divergencias.items()
             )
+            if set(divergencias) <= set(IDENTIDADE_AVALIACAO):
+                # A geração é a mesma: não é preciso gerar de novo.
+                raise RuntimeError(
+                    f"o log {self.log.path.name} foi avaliado com outro avaliador:\n{detalhe}\n"
+                    f"A geração é a mesma. Reavalie sem GPU, num log novo: "
+                    f"`tcc-rag reavaliar --run-id {self.run_id}`, e retome com o --run-id "
+                    f"que ele indicar."
+                )
             raise RuntimeError(
                 f"o log {self.log.path.name} contém linhas de outra identidade:\n{detalhe}\n"
                 f"Arquive o arquivo ou use --run-id com outro nome. Retomar "
@@ -150,11 +222,14 @@ class Runner:
             )
         outras = revisoes - {codigo_revisao()}
         if outras:
-            import sys
-
             print(f"[retomada] AVISO: o log {self.log.path.name} tem linhas de outra revisão "
                   f"do código ({', '.join(sorted(outras))}); a atual é {codigo_revisao()}. "
                   "Cada linha registra a sua.", file=sys.stderr)
+        atuais = json.dumps({p: ambiente()["bibliotecas"].get(p) for p in GERACAO}, sort_keys=True)
+        if bibliotecas - {atuais}:
+            print(f"[retomada] AVISO: o log {self.log.path.name} tem linhas geradas com outras "
+                  f"versões das bibliotecas de geração; as atuais são {atuais}. Cada linha "
+                  "registra as suas em `ambiente`.", file=sys.stderr)
 
     def _sha_do_item(self, item: TestItem) -> str:
         chave = (item.example_id, item.lang)
@@ -266,10 +341,7 @@ class Runner:
             predicted = extract_sql(gen.text)
             schema = self.schemas[item.db_id]
             rascunho = self._rascunhos.get((item.example_id, item.lang), {}) if condition == "C4" else {}
-            veredito = self.avaliador.avaliar(schema.sqlite_path, predicted, item.gold_sql)
-            em = self.avaliador_em.avaliar(
-                schema.sqlite_path, schema.tables_entry, predicted, item.gold_sql
-            )
+            avaliacao = campos_avaliacao(self.avaliador, self.avaliador_em, schema, predicted, item.gold_sql)
             # O acerto estrutural é medido sobre o que o modelo recebeu: as
             # demonstrações que sobraram depois do corte por orçamento.
             hit = metrics.structural_hit(
@@ -285,6 +357,7 @@ class Runner:
                     "split": self.split,
                     "indice_digest": self.indice_digest,
                     "item_sha256": self._sha_do_item(item),
+                    "template_sha256": self.identidade["template_sha256"],
                     "codigo_revisao": codigo_revisao(),
                     "ambiente": ambiente(),
                     "timestamp": time.time(),
@@ -292,12 +365,10 @@ class Runner:
                     "lang": item.lang,
                     "db_id": item.db_id,
                     "example_id": item.example_id,
-                    "dificuldade_oficial": em.dificuldade,
                     "dificuldade_aprox": item.difficulty,
                     "question_raw": item.question_raw,
                     "question_delex": item.question_delex,
                     "gold_sql": item.gold_sql,
-                    "gold_exec_ok": veredito.situacao != "referencia_invalida",
                     "retrieved_ids": selection.candidate_ids,
                     "retrieved_scores": [round(s, 5) for s in selection.candidate_scores],
                     "selected_demo_ids": [d.uid for d in selection.demos],
@@ -328,22 +399,7 @@ class Runner:
                     "completion_tokens": gen.completion_tokens,
                     "raw_output": gen.text[:2000],
                     "generated_sql": predicted,
-                    "exec_ok": veredito.pred_executou,
-                    "exec_error": veredito.erro,
-                    "exec_timeout": veredito.situacao == "tempo_predicao",
-                    "ex_correct": veredito.correto,
-                    "ex_status": veredito.situacao,
-                    "ex_avaliador": self.avaliador.identificador,
-                    "ex_ordem_importa": veredito.ordem_importa,
-                    "ex_linhas_ref": veredito.linhas_ref,
-                    "ex_linhas_pred": veredito.linhas_pred,
-                    "ex_ambos_vazios": veredito.ambos_vazios,
-                    "em_oficial": em.correto,
-                    "em_status": em.situacao,
-                    "em_avaliador": self.avaliador_em.identificador,
-                    "em_componentes_divergentes": list(em.componentes_divergentes),
-                    "em_erro": em.erro,
-                    "em_canonico_proprio": metrics.em_canonico_proprio(predicted, item.gold_sql),
+                    **avaliacao,
                     "select_ms": round(select_ms, 2),
                     "latency_ms": round(gen.latency_ms, 2),
                     "backend": self.backend.descriptor,

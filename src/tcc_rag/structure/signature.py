@@ -69,11 +69,17 @@ def _n_subconsultas(tree: exp.Expression) -> int:
     uma vez. Até a E05, a contagem somava os SELECTs além do primeiro e os nós
     `Subquery`, o que contava duas vezes cada subconsulta entre parênteses e
     contava como subconsulta cada ramo de operação de conjunto.
+
+    Cada CTE (`WITH nome AS (...)`) conta como uma subconsulta, qualquer que
+    seja a raiz. Antes da revisão da E05, contava 1 sob um SELECT e 0 sob um
+    UNION, porque o `WITH` fica pendurado na raiz.
     """
-    return sum(
+    return len(list(tree.find_all(exp.CTE))) + sum(
         1
         for consulta in tree.find_all(*_CONSULTAS)
-        if consulta is not tree and isinstance(_ancestral(consulta, _CONSULTAS), exp.Select)
+        if consulta is not tree
+        and not isinstance(consulta.parent, exp.CTE)
+        and isinstance(_ancestral(consulta, _CONSULTAS), exp.Select)
     )
 
 
@@ -123,7 +129,9 @@ def signature(sql: str) -> dict[str, Any] | None:
     if selects:
         n_select_items = len(selects[0].expressions)
 
-    tables = {t.name.lower() for t in tree.find_all(exp.Table) if t.name}
+    # O nome de uma CTE aparece como tabela no FROM, mas não é uma tabela do banco.
+    ctes = {cte.alias.lower() for cte in tree.find_all(exp.CTE) if cte.alias}
+    tables = {t.name.lower() for t in tree.find_all(exp.Table) if t.name} - ctes
 
     return {
         "n_joins": len(list(tree.find_all(exp.Join))),

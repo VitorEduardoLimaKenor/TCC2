@@ -383,7 +383,7 @@ def test_varredura_percorre_a_grade_e_reaproveita_rascunhos(universo):
     linhas = run_sweep(
         cfg, itens, pool, schemas, index, embedder,
         DummyBackend(cfg.generation), "d1",
-        ks=ks, lambdas=lambdas, ns=ns, conditions=("C4",),
+        ks=ks, lambdas=lambdas, ns=ns, conditions=("C4",), indice_digest="i-teste",
     )
 
     assert len(linhas) == 4
@@ -445,7 +445,7 @@ def test_varredura_nao_reporta_log_antigo_de_outra_identidade(universo, monkeypa
     def varrer():
         return run_sweep(cfg, itens, pool, schemas, index, embedder, DummyBackend(cfg.generation),
                          "d1", ks=[2], lambdas=[0.5], ns=[4], item_digest="amostra",
-                         conditions=("C2",))
+                         conditions=("C2",), indice_digest="i-teste")
 
     primeira = varrer()
     assert varrer()[0].n_itens == primeira[0].n_itens  # mesma identidade: retoma sem refazer

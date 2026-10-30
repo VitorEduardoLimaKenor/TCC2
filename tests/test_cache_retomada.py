@@ -284,7 +284,7 @@ def test_linha_registra_identidade_e_proveniencia(mundo):
 
 def test_cauda_incompleta_vai_para_incidente_e_o_log_continua_legivel(mundo, capsys):
     cfg, schemas, itens, _ = mundo
-    log = _primeira(mundo, partition_digest="d1", split="val")
+    log = _primeira(mundo, partition_digest="d1", split="val", indice_digest="i1")
     with log.open("a", encoding="utf-8") as fh:
         fh.write('{"run_id": "r", "condi')
     reaberto = RunLog(log)
@@ -412,8 +412,8 @@ def test_indice_sem_identidade_ou_desatualizado_e_recusado(tmp_path):
     index.upsert(_pool(), np.ones((2, 4), dtype=np.float32))
     with pytest.raises(ValueError, match="sem identidade"):
         _indice_conferido(index, _pool(), embedder)
-    index.gravar_identidade(identidade_indice(_pool(), embedder))
-    assert _indice_conferido(index, _pool(), embedder) == identidade_indice(_pool(), embedder)["digest"]
+    index.gravar_identidade(identidade_indice(_pool(), embedder, index.vetores_sha256()))
+    assert _indice_conferido(index, _pool(), embedder) == identidade_indice(_pool(), embedder, index.vetores_sha256())["digest"]
     with pytest.raises(ValueError, match="outro pool"):
         _indice_conferido(index, _pool("how many students"), embedder)
     with pytest.raises(ValueError, match="outro pool"):
@@ -435,3 +435,141 @@ def test_relatorio_recusa_misturar_avaliadores_de_em(tmp_path):
     _gravar(tmp_path, "c", [_linha("c", example_id="e3", **base, em_avaliador="")])
     with pytest.raises(ValueError, match="em_status sem em_avaliador"):
         report_rows(tmp_path, config_hash="cfg", run_ids=["c"])
+
+
+# ------------------------------------------------ revisão da E04 (R1–R6)
+
+def _nova(run_id, **campos):
+    base = {"formato_log": runner_mod.FORMATO_LOG, "indice_digest": "i1", "template_sha256": "t1",
+            "ex_status": "coincide", "ex_avaliador": "oficial", "codigo_revisao": "abc"}
+    return _linha(run_id, **{**base, **campos})
+
+
+@pytest.mark.parametrize("campo,valor", [("indice_digest", "i2"), ("formato_log", 2),
+                                         ("template_sha256", "t2")])
+def test_relatorio_exige_identidade_de_geracao_unica_entre_logs(tmp_path, campo, valor):
+    """R1: PT e EN em logs separados, com índices diferentes, não se combinam."""
+    _gravar(tmp_path, "pt", [_nova("pt")])
+    _gravar(tmp_path, "en", [_nova("en", lang="en", **{campo: valor})])
+    assert len(report_rows(tmp_path, config_hash="cfg", run_ids=["pt"])) == 1
+    with pytest.raises(ValueError, match=campo):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["pt", "en"])
+
+
+def test_relatorio_recusa_indice_vazio_e_mistura_com_historico(tmp_path):
+    _gravar(tmp_path, "vazio", [_nova("vazio", indice_digest="")])
+    with pytest.raises(ValueError, match="indice_digest"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["vazio"])
+    _gravar(tmp_path, "novo", [_nova("novo")])
+    _gravar(tmp_path, "velho", [_linha("velho", example_id="e2")])
+    with pytest.raises(ValueError, match="históricos"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["novo", "velho"])
+
+
+def test_teste_exige_revisao_unica_e_limpa(tmp_path):
+    """Decisão 1 da revisão da E04, no código."""
+    _gravar(tmp_path, "ok", [_nova("ok", split="test")])
+    assert len(report_rows(tmp_path, config_hash="cfg", run_ids=["ok"])) == 1
+    _gravar(tmp_path, "sujo", [_nova("sujo", split="test", codigo_revisao="abc+0123456789ab")])
+    with pytest.raises(ValueError, match="única revisão"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["sujo"])
+    _gravar(tmp_path, "val", [_nova("val", codigo_revisao="abc+0123456789ab")])
+    assert len(report_rows(tmp_path, config_hash="cfg", run_ids=["val"])) == 1
+
+
+def test_cauda_incompleta_no_relatorio_indica_o_reparo(tmp_path):
+    """R6: o relatório não altera o arquivo, mas diz como reparar."""
+    _gravar(tmp_path, "r", [_nova("r")])
+    with (tmp_path / "r.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write('{"run_id": "r", "cond')
+    with pytest.raises(ValueError, match="arquivo de incidente"):
+        report_rows(tmp_path, config_hash="cfg", run_ids=["r"])
+
+
+def test_so_a_avaliacao_mudou_pede_reavaliar_e_reavaliar_funciona(mundo, monkeypatch):
+    """R3(b): avaliador novo não obriga a gerar de novo."""
+    cfg, schemas, itens, tmp_path = mundo
+    base = {"partition_digest": "d1", "split": "val", "indice_digest": "i1"}
+    log = _primeira(mundo, **base)
+    _avaliador_outro(monkeypatch)
+    with pytest.raises(RuntimeError, match="tcc-rag reavaliar"):
+        _runner(cfg, schemas, log, **base)
+    novas = runner_mod.reavaliar(RunLog(log).rows(), schemas, cfg.sandbox, "r-reav")
+    assert {l["ex_avaliador"] for l in novas} == {"outro avaliador"}
+    assert all(l["reavaliado_de"] == "r" and l["generated_sql"] for l in novas)
+    destino = tmp_path / "r-reav.jsonl"
+    novo_log = RunLog(destino)
+    for l in novas:
+        novo_log.append(l)
+    backend = ContaGeracoes(cfg.generation)
+    retomado = _runner(cfg, schemas, destino, run_id="r-reav", backend=backend, **base)
+    assert retomado.run(itens, ("C0",)) == {"C0": 0} and backend.prompts == 0
+
+
+def test_template_do_prompt_final_entra_na_identidade(mundo, monkeypatch):
+    """R5: editar a instrução do prompt final entre sessões impede a retomada."""
+    cfg, schemas, itens, _ = mundo
+    base = {"partition_digest": "d1", "split": "val", "indice_digest": "i1"}
+    log = _primeira(mundo, **base)
+    monkeypatch.setattr(prompt_mod, "INSTRUCTION_EN", prompt_mod.INSTRUCTION_EN + " Be brief.")
+    with pytest.raises(RuntimeError, match="template do prompt final"):
+        _runner(cfg, schemas, log, **base)
+
+
+def test_digest_do_indice_vem_do_conteudo(tmp_path):
+    """R3(a): versões diferentes com os mesmos vetores dão o mesmo digest;
+    vetores diferentes, outro digest."""
+    cfg = ExperimentConfig().qdrant
+    cfg.path = str(tmp_path / "qdrant")
+    index = DemoIndex(cfg, dimension=4)
+    index.recreate()
+    index.upsert(_pool(), np.ones((2, 4), dtype=np.float32))
+    a = SimpleNamespace(identidade_essencial={"modelo": "m"}, identidade={"modelo": "m", "torch": "2.1"})
+    b = SimpleNamespace(identidade_essencial={"modelo": "m"}, identidade={"modelo": "m", "torch": "2.9"})
+    sha = index.vetores_sha256()
+    assert identidade_indice(_pool(), a, sha)["digest"] == identidade_indice(_pool(), b, sha)["digest"]
+    index.gravar_identidade(identidade_indice(_pool(), a, sha))
+    assert _indice_conferido(index, _pool(), b) == identidade_indice(_pool(), a, sha)["digest"]
+    vetores = np.ones((2, 4), dtype=np.float32)
+    vetores[0, 0] = 0.5
+    index.upsert(_pool(), vetores)
+    assert index.vetores_sha256() != sha
+    with pytest.raises(ValueError, match="outro pool"):
+        _indice_conferido(index, _pool(), a)
+    index.close()
+
+
+def test_run_id_usa_o_conteudo_do_split_inteiro():
+    """R4: --limit e --langs dividem o log com o split completo."""
+    from tcc_rag.pipeline import build_test_items, conteudo_digest, subsample
+    from tcc_rag.schemas import Example
+
+    exs = [Example(example_id=f"x{i}", db_id="d", question_en=f"q{i}", question_pt=f"p{i}",
+                   sql="SELECT 1", partition="val") for i in range(10)]
+    todos = build_test_items(exs, partition="val", languages=("pt", "en"))
+    amostra = subsample(build_test_items(exs, partition="val", languages=("pt",)), 4)
+    assert conteudo_digest(amostra) != conteudo_digest(todos)
+    texto = (Path(__file__).resolve().parent.parent / "src/tcc_rag/cli.py").read_text(encoding="utf-8")
+    assert "{cfg.config_hash}-{conteudo_split}" in texto
+
+
+def test_revisao_suja_traz_hash_do_diff():
+    from tcc_rag.proveniencia import codigo_revisao
+
+    rev = codigo_revisao()
+    assert rev == "desconhecida" or re.fullmatch(r"[0-9a-f]{40}(\+[0-9a-f]{12})?", rev)
+
+
+def test_fumaca_tem_colecao_propria_e_notebook_prepara_a_rodada_real():
+    """R2: a fumaça não recria a coleção da rodada real, e a Parte 2 do notebook
+    baixa o punkt_tab e reconstrói o índice com colab.yaml antes de rodar."""
+    raiz = Path(__file__).resolve().parent.parent
+    fumaca = ExperimentConfig.load(raiz / "configs/colab-fumaca.yaml").qdrant
+    real = ExperimentConfig.load(raiz / "configs/colab.yaml").qdrant
+    assert (fumaca.path, fumaca.collection) != (real.path, real.collection)
+    celulas = ["".join(c["source"]) for c in
+               json.loads((raiz / "notebooks/tcc_colab.ipynb").read_text(encoding="utf-8"))["cells"]]
+    instalacoes = [i for i, c in enumerate(celulas) if "pip install" in c]
+    assert all("nltk.downloader punkt_tab" in celulas[i] for i in instalacoes)
+    rodada = next(i for i, c in enumerate(celulas) if "tcc-rag run --config configs/colab.yaml" in c)
+    assert any("tcc-rag index --config configs/colab.yaml" in c for c in celulas[: rodada + 1])

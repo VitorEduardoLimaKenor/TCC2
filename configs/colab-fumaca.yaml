@@ -27,7 +27,7 @@ embedding:
 qdrant:
   mode: local
   path: /content/drive/MyDrive/tcc/artifacts/qdrant
-  collection: demos
+  collection: demos_fumaca   # própria: não invalida o índice da rodada real
   distance: Cosine
 
 retrieval:

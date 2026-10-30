@@ -24,6 +24,24 @@ from typing import Any, Iterator
 RUNS_DIR = "runs-v2"
 """Diretório dos logs novos, dentro de `paths.work_dir`."""
 
+# Identidade de uma execução, conferida na retomada (`Runner`) e entre os logs
+# combinados num relatório (`report_rows`). A de geração diz o que o modelo
+# recebeu; a de avaliação, como a saída foi julgada. Quando só a de avaliação
+# muda, não é preciso gerar de novo: basta `tcc-rag reavaliar`.
+IDENTIDADE_GERACAO = {
+    "formato_log": "outro formato de log (anterior à E04?)",
+    "config_hash": "outra configuração",
+    "partition_digest": "outra partição",
+    "split": "outro split",
+    "indice_digest": "outro índice de demonstrações",
+    "template_sha256": "outro template do prompt final",
+}
+IDENTIDADE_AVALIACAO = {
+    "ex_avaliador": "outro avaliador de EX",
+    "em_avaliador": "outro avaliador de EM",
+}
+IDENTIDADE_RETOMADA = {**IDENTIDADE_GERACAO, **IDENTIDADE_AVALIACAO}
+
 AVALIADOR_EX_HISTORICO = "proprio-anterior-a-E02 (sem ex_status nem ex_avaliador)"
 """Rótulo, só para leitura, dos logs gravados antes da EX oficial."""
 
@@ -120,6 +138,10 @@ def read_json(path: str | Path) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def row_vazio(valor: Any) -> bool:
+    return valor is None or valor == ""
+
+
 def avaliador_ex(row: dict[str, Any]) -> str:
     """O avaliador de EX de uma linha, exigindo que ele esteja identificado.
 
@@ -175,12 +197,22 @@ def report_rows(
         if not path.is_file():
             raise ValueError(f"log não encontrado: {path}")
         rows = []
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        texto = path.read_text(encoding="utf-8")
+        linhas_texto = texto.splitlines()
+        for number, line in enumerate(linhas_texto, 1):
             if not line.strip():
                 continue
             try:
                 row = json.loads(line)
             except json.JSONDecodeError as exc:
+                if number == len(linhas_texto) and not texto.endswith("\n"):
+                    # O relatório não altera arquivos; quem repara é o RunLog.
+                    raise ValueError(
+                        f"JSON inválido em {path.name}:{number}, a última linha, sem quebra no "
+                        "fim: provavelmente uma queda no meio da escrita. Reabra o log com o "
+                        f"`tcc-rag run`/`sweep` do mesmo --run-id ({path.stem}), que move o "
+                        "trecho para um arquivo de incidente e gera o item de novo."
+                    ) from exc
                 raise ValueError(f"JSON inválido em {path.name}:{number}") from exc
             if not isinstance(row, dict):
                 raise ValueError(f"registro inválido em {path.name}:{number}")
@@ -217,6 +249,25 @@ def report_rows(
     if len({"em_status" in row for row in selected}) != 1:
         raise ValueError("não é permitido combinar linhas com e sem EM oficial; "
                          "reavalie os logs anteriores à E03")
+    # Logs da E04 em diante: toda a identidade de geração precisa ser única e
+    # preenchida entre os logs combinados, como dentro de um log na retomada.
+    # Logs históricos (sem `formato_log`) só são lidos isolados.
+    com_formato = {"formato_log" in row for row in selected}
+    if len(com_formato) != 1:
+        raise ValueError("não é permitido combinar logs históricos (sem formato_log) com logs "
+                         "da E04 em diante; leia os históricos isolados, com --runs-dir")
+    if com_formato == {True}:
+        for field, descricao in IDENTIDADE_GERACAO.items():
+            values = {json.dumps(row.get(field), sort_keys=True) for row in selected}
+            if len(values) != 1 or row_vazio(selected[0].get(field)):
+                raise ValueError(f"{field} ausente ou misturado entre os logs ({descricao}): "
+                                 + "; ".join(sorted(values)))
+        if selected[0]["split"] == "test":
+            revisoes = {row.get("codigo_revisao") for row in selected}
+            revisao = next(iter(revisoes))
+            if len(revisoes) != 1 or not revisao or "+" in str(revisao) or revisao == "desconhecida":
+                raise ValueError("o teste exige uma única revisão do código, commitada e sem "
+                                 "modificações locais: " + "; ".join(sorted(map(str, revisoes))))
     # Um único avaliador de EX e de EM por seleção. O config_hash não muda
     # quando o avaliador muda, então não basta para separar duas definições de
     # EX (por exemplo, as cópias migradas da E01 e um log novo).

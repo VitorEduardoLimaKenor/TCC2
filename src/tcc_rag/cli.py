@@ -18,6 +18,7 @@ pulado, o que permite atravessar quedas de sessão no Colab ou no Kaggle.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -143,7 +144,7 @@ def cmd_index(args) -> int:
     index = DemoIndex(cfg.qdrant, dimension=vectors.shape[1])
     index.recreate()
     total = index.upsert(demos, vectors)
-    identidade = identidade_indice(demos, embedder)
+    identidade = identidade_indice(demos, embedder, index.vetores_sha256())
     index.gravar_identidade(identidade)
     print(f"indexadas {total} demonstrações ({len(demos)//2} exemplos × 2 idiomas)")
     print(f"identidade do índice: {identidade['digest']} ({index.identidade_path})")
@@ -163,6 +164,12 @@ def cmd_run(args) -> int:
 
     examples = load_manifest(cfg)
     split = args.split
+    from .pipeline import conteudo_digest
+
+    # O conteúdo no nome é o do split inteiro, nos dois idiomas, antes de
+    # --limit e --langs: uma amostra e o split completo dividem o log, e a
+    # chave (condição, idioma, exemplo) não colide. Outro texto muda o nome.
+    conteudo_split = conteudo_digest(build_test_items(examples, partition=split, languages=ALL_LANGUAGES))
     items = build_test_items(
         examples,
         partition=split,
@@ -184,12 +191,12 @@ def cmd_run(args) -> int:
     selector = DemoSelector(cfg, index, embedder, pool)
     backend = make_backend(cfg.generation)
 
-    from .pipeline import conteudo_digest, partition_digest, runs_dir
+    from .pipeline import partition_digest, runs_dir
 
     digest = partition_digest(examples)
     # O conteúdo entra no nome: outro texto de pergunta gera outro log, em vez
     # de retomar o antigo.
-    run_id = args.run_id or f"{cfg.name}-{split}-{cfg.config_hash}-{conteudo_digest(items)}"
+    run_id = args.run_id or f"{cfg.name}-{split}-{cfg.config_hash}-{conteudo_split}"
     log = RunLog(runs_dir(cfg) / f"{run_id}.jsonl")
     print(f"run_id={run_id}  já registradas={log.n_done}  itens={len(items)}")
     print(f"partition_digest={digest}  indice={indice_digest}")
@@ -271,6 +278,46 @@ def cmd_sweep(args) -> int:
               f"({melhor.condicao} em {melhor.lang})")
     print(f"escrito: {cfg.work / 'sweep.json'}")
     index.close()
+    return 0
+
+
+def cmd_reavaliar(args) -> int:
+    """Recalcula EX e EM de um log já gerado, com os avaliadores atuais, num log novo.
+
+    É o que fazer quando a retomada recusa um log só porque o avaliador mudou
+    (outra versão, outro punkt_tab): a geração não precisa ser refeita. Roda em
+    CPU. O log original não é alterado.
+    """
+    import hashlib
+
+    from .runner import reavaliar
+
+    cfg = _cfg(args)
+    origem = _runs_dir(cfg, args) / f"{args.run_id}.jsonl"
+    if not origem.is_file():
+        print(f"log não encontrado: {origem}", file=sys.stderr)
+        return 1
+    linhas = RunLog(origem).rows()
+    if not linhas:
+        print("log vazio", file=sys.stderr)
+        return 1
+    schemas = load_schemas(cfg.paths.spider_root)
+    from .evaluation.em_oficial import AvaliadorEM
+    from .evaluation.ex_oficial import AvaliadorEX
+    from .evaluation.sandbox import Sandbox
+
+    marca = hashlib.sha256((AvaliadorEX(Sandbox(cfg.sandbox)).identificador + AvaliadorEM().identificador)
+                           .encode("utf-8")).hexdigest()[:8]
+    novo_id = args.novo_run_id or f"{args.run_id}-reav-{marca}"
+    destino = _runs_dir(cfg, args) / f"{novo_id}.jsonl"
+    if destino.exists():
+        print(f"já existe: {destino}; escolha outro --novo-run-id", file=sys.stderr)
+        return 1
+    log = RunLog(destino)
+    for linha in reavaliar(linhas, schemas, cfg.sandbox, novo_id):
+        log.append(linha)
+    print(f"reavaliadas {len(linhas)} linhas: {destino}")
+    print(f"para retomar a geração: --run-id {novo_id}")
     return 0
 
 
@@ -396,13 +443,16 @@ def _indice_conferido(index, pool, embedder) -> str:
     """Recusa um índice construído com outro pool ou vetorizador; devolve o digest."""
     from .pipeline import identidade_indice
 
-    esperada = identidade_indice(pool, embedder)
+    esperada = identidade_indice(pool, embedder, index.vetores_sha256())
     gravada = index.ler_identidade()
-    if gravada != esperada:
+    if gravada is None or gravada.get("digest") != esperada["digest"]:
         motivo = ("sem identidade registrada (construído antes da E04 ou interrompido)"
                   if gravada is None else "construído com outro pool ou outro vetorizador")
         raise ValueError(f"índice de demonstrações {motivo}: rode `tcc-rag index` antes "
                          f"({index.identidade_path})")
+    if gravada.get("proveniencia") != esperada["proveniencia"]:
+        print("[indice] AVISO: o vetorizador atual difere do que construiu o índice só em "
+              "dispositivo, lote ou versões; os vetores gravados são os mesmos.", file=sys.stderr)
     return esperada["digest"]
 
 
@@ -431,6 +481,9 @@ def _selection(rows: list[dict], runs_dir: Path | None = None) -> dict:
         "ex_avaliador": avaliador_ex(rows[0]),
         "em_avaliador": avaliador_em(rows[0]),
         "codigo_revisoes": sorted({row.get("codigo_revisao") or "nao_registrada" for row in rows}),
+        **{field: rows[0].get(field) for field in ("formato_log", "indice_digest", "template_sha256")},
+        "ambientes": sorted({json.dumps((row.get("ambiente") or {}).get("bibliotecas"), sort_keys=True)
+                             for row in rows}),
         "n_rows": len(rows),
     }
 
@@ -458,6 +511,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("index", cmd_index, "vetoriza o pool e popula o Qdrant"),
         ("run", cmd_run, "executa as condições experimentais"),
         ("sweep", cmd_sweep, "varre a grade de k, lambda e N na validação"),
+        ("reavaliar", cmd_reavaliar, "recalcula EX e EM de um log com os avaliadores atuais"),
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),
         ("stats", cmd_stats, "McNemar, bootstrap e diferenças em diferenças"),
         ("tables", cmd_tables, "gera as tabelas LaTeX do Capítulo 5"),
@@ -482,6 +536,10 @@ def build_parser() -> argparse.ArgumentParser:
                            default=[0.5, 0.7, 0.9])
             p.add_argument("--n-candidates", dest="n_candidates", nargs="*",
                            type=int, default=[25])
+        if name == "reavaliar":
+            p.add_argument("--run-id", dest="run_id", required=True)
+            p.add_argument("--novo-run-id", dest="novo_run_id", default=None)
+            p.add_argument("--runs-dir", default=None)
         if name in {"evaluate", "stats", "tables"}:
             p.add_argument("--run-id", dest="run_id", nargs="+", default=None,
                            help="logs a combinar explicitamente (sem observações duplicadas)")

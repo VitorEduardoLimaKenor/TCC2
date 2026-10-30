@@ -63,6 +63,19 @@ class Embedder:
         }
 
     @property
+    def identidade_essencial(self) -> dict:
+        """O que define o espaço das consultas, independentemente de numérica:
+        modelo, revisão, normalização e prefixos. Entra no digest do índice;
+        dispositivo, lote e versões só mudam os vetores, que entram por conteúdo."""
+        return {
+            "modelo": self.cfg.model,
+            "revisao": self.cfg.revision,
+            "normalize": self.cfg.normalize,
+            "query_prefix": self.cfg.query_prefix,
+            "passage_prefix": self.cfg.passage_prefix,
+        }
+
+    @property
     def _namespace(self) -> str:
         import json
 

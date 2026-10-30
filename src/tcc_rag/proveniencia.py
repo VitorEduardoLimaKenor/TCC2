@@ -39,7 +39,10 @@ def versoes(pacotes: tuple[str, ...]) -> dict[str, str | None]:
 
 @functools.lru_cache(maxsize=1)
 def codigo_revisao() -> str:
-    """SHA do commit do pacote, com "+modificado" se houver mudança não commitada.
+    """SHA do commit do pacote, com "+<hash do diff>" se houver mudança não commitada.
+
+    O hash é o SHA-256 (12 primeiros) de `git diff HEAD`: duas árvores sujas
+    diferentes não se confundem.
 
     "desconhecida" quando o pacote não vem de um clone git (por exemplo, uma
     instalação a partir de arquivo). No Colab o pacote é clonado e instalado
@@ -51,13 +54,18 @@ def codigo_revisao() -> str:
         )
         if sha.returncode != 0 or not sha.stdout.strip():
             return "desconhecida"
-        sujo = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=_RAIZ, capture_output=True, text=True, timeout=10,
+        diff = subprocess.run(
+            ["git", "diff", "HEAD"], cwd=_RAIZ, capture_output=True, timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
         return "desconhecida"
-    return sha.stdout.strip() + ("+modificado" if sujo.stdout.strip() else "")
+    if diff.returncode != 0:
+        return "desconhecida"
+    if not diff.stdout.strip():
+        return sha.stdout.strip()
+    import hashlib
+
+    return f"{sha.stdout.strip()}+{hashlib.sha256(diff.stdout).hexdigest()[:12]}"
 
 
 @functools.lru_cache(maxsize=1)

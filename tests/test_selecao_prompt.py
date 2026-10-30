@@ -236,3 +236,15 @@ def test_log_mede_o_acerto_estrutural_sobre_o_que_o_modelo_recebeu(banco, tmp_pa
     assert sig.compatible(sig.signature(item.gold_sql), compativel.signature)
     assert linha["prompt_no_limite_de_entrada"] is False
     assert linha["prompt_tokens_estimados"] > 0
+
+
+@pytest.mark.parametrize("sql,subconsultas,tabelas", [
+    ("WITH c AS (SELECT a FROM t) SELECT a FROM c", 1, 1),
+    ("WITH c AS (SELECT a FROM t) SELECT a FROM c UNION SELECT a FROM u", 1, 2),
+    ("WITH c AS (SELECT a FROM t WHERE x IN (SELECT y FROM v)) SELECT a FROM c", 2, 2),
+])
+def test_cte_conta_igual_qualquer_que_seja_a_raiz(sql, subconsultas, tabelas):
+    """F3 da revisão da E05: a CTE contava 1 sob SELECT e 0 sob UNION, e o nome
+    dela entrava em n_tables."""
+    s = sig.signature(sql)
+    assert (s["n_subqueries"], s["n_tables"]) == (subconsultas, tabelas)

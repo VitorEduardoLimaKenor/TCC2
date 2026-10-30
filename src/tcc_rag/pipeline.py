@@ -194,27 +194,36 @@ def runs_dir(cfg: ExperimentConfig) -> Path:
     return cfg.work / RUNS_DIR
 
 
-def identidade_indice(pool: list[Demo], embedder) -> dict:
+def identidade_indice(pool: list[Demo], embedder, vetores_sha256: str) -> dict:
     """O que o índice de demonstrações precisa ter para servir a esta execução.
 
     C2–C4 recebem as demonstrações do payload do Qdrant, não do manifesto. Um
     índice construído com outro texto (o provisório, por exemplo) ou com outro
     vetorizador entregaria demonstrações erradas sem nenhum sinal. `index`
     grava esta identidade ao lado do índice; `run` e `sweep` a conferem.
+
+    O digest vem do conteúdo: os payloads do pool, os vetores gravados no
+    índice (arredondados, `DemoIndex.vetores_sha256`) e o que define o espaço
+    das consultas (modelo, revisão, normalização e prefixos). As versões das
+    bibliotecas ficam só como proveniência: reconstruir o índice depois de uma
+    atualização que não mude os vetores dá o mesmo digest, e a retomada segue.
     """
     import hashlib
     import json
 
     payloads = sorted(json.dumps(d.payload(), sort_keys=True, ensure_ascii=False) for d in pool)
-    vetorizador = getattr(embedder, "identidade", None) or {"tipo": type(embedder).__name__}
+    vetorizador = (getattr(embedder, "identidade_essencial", None)
+                   or getattr(embedder, "identidade", None) or {"tipo": type(embedder).__name__})
     ident = {
         "pool_sha256": hashlib.sha256("\n".join(payloads).encode("utf-8")).hexdigest(),
         "n_demos": len(pool),
+        "vetores_sha256": vetores_sha256,
         "vetorizador": vetorizador,
     }
     ident["digest"] = hashlib.sha256(
         json.dumps(ident, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()[:16]
+    ident["proveniencia"] = getattr(embedder, "identidade", None)
     return ident
 
 
