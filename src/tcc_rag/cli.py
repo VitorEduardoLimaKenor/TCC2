@@ -281,6 +281,69 @@ def cmd_sweep(args) -> int:
     return 0
 
 
+def cmd_custo(args) -> int:
+    """Mede a latência fim a fim por pergunta, com lote unitário (E06).
+
+    A rodada principal gera em lote e registra o tempo médio do lote; esta
+    passagem mede uma pergunta por vez, inclui a consulta preliminar de C4 e
+    usa um cache de vetores vazio. Não avalia acerto. É retomável.
+    """
+    import tempfile
+
+    cfg = _cfg(args)
+    from .custo import medir, resumir
+    from .generation.llm import make_backend
+    from .pipeline import item_set_digest, partition_digest, subsample
+    from .retrieval.embedder import Embedder
+    from .retrieval.index import DemoIndex
+    from .retrieval.selectors import DemoSelector
+
+    examples = load_manifest(cfg)
+    items = build_test_items(
+        examples, partition=args.split,
+        languages=tuple(args.langs) if args.langs else ("pt",),
+    )
+    if args.limit:
+        items = subsample(items, args.limit, seed=cfg.data.seed)
+    if not items:
+        print(f"nenhum item na partição {args.split}", file=sys.stderr)
+        return 1
+
+    schemas = load_schemas(cfg.paths.spider_root)
+    pool = build_demos(examples, partition=part.POOL)
+    # Cache de vetores novo e vazio: a vetorização da pergunta entra no tempo.
+    embedder = Embedder(cfg.embedding, Path(tempfile.mkdtemp(prefix="tcc-custo-vetores-")))
+    index = DemoIndex(cfg.qdrant, dimension=embedder.dimension)
+    indice_digest = _indice_conferido(index, pool, embedder)
+    selector = DemoSelector(cfg, index, embedder, pool)
+    backend = make_backend(cfg.generation)
+
+    amostra = item_set_digest(items)
+    destino = cfg.work / "custo" / f"custo-{args.split}-{cfg.config_hash}-{amostra}.jsonl"
+    identidade = {
+        "config_hash": cfg.config_hash,
+        "partition_digest": partition_digest(examples),
+        "split": args.split,
+        "indice_digest": indice_digest,
+        "amostra_digest": amostra,
+    }
+    conditions = tuple(args.conditions) if args.conditions else ALL_CONDITIONS
+    print(f"itens={len(items)}  condições={' '.join(conditions)}  destino={destino}")
+    escritas = medir(cfg, items, selector, backend, schemas, destino, conditions, identidade)
+    index.close()
+
+    linhas = [json.loads(l) for l in destino.read_text(encoding="utf-8").splitlines() if l.strip()]
+    resumo = resumir(linhas)
+    write_json(cfg.work / "custo" / f"resumo-{args.split}-{cfg.config_hash}-{amostra}.json", resumo)
+    print(f"+{escritas} medições ({len(linhas)} no arquivo)")
+    print(f"{'cond|lang':<10} {'n':>4} {'p50 ms':>9} {'p95 ms':>9} {'tok ent':>8} {'tok sai':>8} {'pico MiB':>9}")
+    for chave, v in resumo.items():
+        pico = "--" if v["gpu_mem_pico_mb_max"] is None else f"{v['gpu_mem_pico_mb_max']:.0f}"
+        print(f"{chave:<10} {v['n']:>4} {v['total_ms_p50']:>9.0f} {v['total_ms_p95']:>9.0f} "
+              f"{v['prompt_tokens_total_media']:>8.0f} {v['completion_tokens_total_media']:>8.0f} {pico:>9}")
+    return 0
+
+
 def cmd_estratos(args) -> int:
     """Estrato de literal traduzido (LT/SL), pela regra pré-registrada.
 
@@ -545,6 +608,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("index", cmd_index, "vetoriza o pool e popula o Qdrant"),
         ("run", cmd_run, "executa as condições experimentais"),
         ("sweep", cmd_sweep, "varre a grade de k, lambda e N na validação"),
+        ("custo", cmd_custo, "mede a latência fim a fim por pergunta, com lote unitário"),
         ("estratos", cmd_estratos, "estrato de literal traduzido (LT/SL), pré-registrado"),
         ("reavaliar", cmd_reavaliar, "recalcula EX e EM de um log com os avaliadores atuais"),
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),
@@ -560,6 +624,11 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--langs", nargs="*", choices=list(ALL_LANGUAGES))
             p.add_argument("--limit", type=int, default=0)
             p.add_argument("--run-id", dest="run_id", default=None)
+        if name == "custo":
+            p.add_argument("--split", default="val", choices=["val", "test"])
+            p.add_argument("--conditions", nargs="*", choices=list(ALL_CONDITIONS))
+            p.add_argument("--langs", nargs="*", choices=list(ALL_LANGUAGES))
+            p.add_argument("--limit", type=int, default=100)
         if name == "sweep":
             p.add_argument("--split", default="val", choices=["val"])
             p.add_argument("--langs", nargs="*", choices=list(ALL_LANGUAGES))

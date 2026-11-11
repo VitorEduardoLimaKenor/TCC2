@@ -51,12 +51,14 @@ from .retrieval.selectors import DemoSelector
 from .schemas import Demo, RetrievalQuery, TestItem
 from .structure import signature as sig
 
-FORMATO_LOG = 3
+FORMATO_LOG = 4
 """Formato das linhas. 2: E04 (identidade de retomada e proveniência).
 3: E05 e a integração PT-BR — demonstrações efetivas (`prompt_demo_ids`,
 `k_efetivo`), acerto estrutural sobre elas, assinatura corrigida, template do
-prompt na identidade e `indice_digest` pelo conteúdo. Linhas de formatos
-diferentes não se retomam nem se combinam."""
+prompt na identidade e `indice_digest` pelo conteúdo.
+4: E06 — `prompt_tokens` e `completion_tokens` sem o preenchimento do lote,
+tempo e tamanho do lote, pico de memória da GPU e custo do rascunho de C4 em
+cada linha. Linhas de formatos diferentes não se retomam nem se combinam."""
 
 # Marcas que substituem pergunta e DDL ao calcular o hash do template do
 # prompt de rascunho: o que sobra é a instrução e os rótulos do idioma.
@@ -401,7 +403,13 @@ class Runner:
                     "generated_sql": predicted,
                     **avaliacao,
                     "select_ms": round(select_ms, 2),
+                    # Tempo do lote dividido pelos itens do lote: custo médio de
+                    # geração, não latência por pergunta (essa é medida à parte,
+                    # com lote unitário, por `tcc-rag custo`).
                     "latency_ms": round(gen.latency_ms, 2),
+                    "latencia_lote_ms": None if gen.batch_ms is None else round(gen.batch_ms, 2),
+                    "tamanho_lote": gen.batch_size,
+                    "gpu_mem_pico_mb": gen.gpu_mem_peak_mb,
                     "backend": self.backend.descriptor,
                 }
             )

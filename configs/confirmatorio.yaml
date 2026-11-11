@@ -1,0 +1,62 @@
+# Configuracao candidata ao congelamento (E15) e usada, sem alteracao, na
+# validacao PT/EN (E11) e no teste confirmatorio (E16).
+#
+# Difere de colab.yaml em tres pontos, todos registrados antes de qualquer
+# execucao com perguntas em portugues brasileiro:
+#   1. lambda_question = 0.95: valor escolhido na varredura de validacao de
+#      22/09/2026 (k=4, N=25, lambda=0.95), em vez do 0.5 inicial do colab.yaml;
+#   2. revisoes dos dois modelos fixadas por SHA (decisao D-019, 11/11/2026);
+#   3. nome proprio, para que os logs nao se confundam com os da varredura.
+# O config_hash muda uma unica vez, aqui. Depois do congelamento, este arquivo
+# nao e mais editado.
+name: confirmatorio
+
+paths:
+  spider_root: /content/drive/MyDrive/tcc/data/spider
+  questions_pt: /content/drive/MyDrive/tcc/data/spider_pt/questions_pt.json
+  work_dir: /content/drive/MyDrive/tcc/artifacts
+
+data:
+  min_questions_per_db: 90
+  min_families_per_db: 25
+  pool_ratio: 0.60
+  val_ratio: 0.15
+  test_ratio: 0.25
+  near_duplicate_threshold: 0.92
+  seed: 20260904
+
+embedding:
+  model: intfloat/multilingual-e5-base
+  revision: d128750597153bb5987e10b1c3493a34e5a4502a
+  device: cuda
+  batch_size: 128
+  normalize: true
+  query_prefix: "query: "
+  passage_prefix: "passage: "
+
+qdrant:
+  mode: local
+  path: /content/drive/MyDrive/tcc/artifacts/qdrant-confirmatorio
+  collection: demos
+  distance: Cosine
+
+retrieval:
+  k: 4
+  n_candidates: 25
+  lambda_question: 0.95
+  fixed_demo_seed: 20260919
+
+generation:
+  backend: hf
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  revision: c03e6d358207e414f1eca0bb1891e29f1db0e242
+  quantization: bitsandbytes-4bit
+  dtype: float16
+  max_context_tokens: 4096
+  max_new_tokens: 256
+  seed: 20261010
+  batch_size: 4
+
+sandbox:
+  timeout_s: 15.0
+  max_rows: 5000

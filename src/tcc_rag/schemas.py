@@ -136,8 +136,18 @@ class Selection:
 class Generation:
     text: str
     prompt_tokens: int
+    """Tokens reais do prompt, sem o preenchimento (padding) do lote."""
     completion_tokens: int
+    """Tokens gerados até o fim de sequência, inclusive; sem o preenchimento do lote."""
     latency_ms: float
+    """Tempo do lote dividido pelo número de itens do lote. Só é latência por
+    pergunta quando `batch_size` é 1 (ver `tcc_rag.custo`)."""
+    batch_ms: float | None = None
+    """Tempo de parede do lote inteiro em que o item foi gerado."""
+    batch_size: int | None = None
+    """Número de itens do lote."""
+    gpu_mem_peak_mb: float | None = None
+    """Pico de memória alocada na GPU durante o lote (torch), em MiB."""
 
 
 @dataclass

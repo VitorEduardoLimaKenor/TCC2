@@ -55,6 +55,8 @@ class DummyBackend:
                     prompt_tokens=self.count_tokens(prompt),
                     completion_tokens=self.count_tokens(text),
                     latency_ms=0.0,
+                    batch_ms=0.0,
+                    batch_size=len(prompts),
                 )
             )
         return out
@@ -76,7 +78,13 @@ class HFBackend:
         self.torch = torch
         torch.manual_seed(cfg.seed)
 
-        kwargs: dict = {"torch_dtype": getattr(torch, cfg.dtype, torch.float16)}
+        # transformers >= 4.56 renomeou `torch_dtype` para `dtype`; o nome antigo
+        # some nas versões seguintes. O valor é o mesmo.
+        import transformers
+
+        versao = tuple(int(p) for p in transformers.__version__.split(".")[:2] if p.isdigit())
+        chave_dtype = "dtype" if versao >= (4, 56) else "torch_dtype"
+        kwargs: dict = {chave_dtype: getattr(torch, cfg.dtype, torch.float16)}
         if cfg.revision:
             kwargs["revision"] = cfg.revision
         if cfg.quantization == "bitsandbytes-4bit":
@@ -105,9 +113,19 @@ class HFBackend:
             )
         return prompt
 
+    def _fim_de_sequencia(self) -> set[int]:
+        ids = getattr(self.model.generation_config, "eos_token_id", None)
+        if ids is None:
+            ids = self.tokenizer.eos_token_id
+        if isinstance(ids, int):
+            ids = [ids]
+        return {int(i) for i in (ids or [])}
+
     def generate(self, prompts: list[str]) -> list[Generation]:
         results: list[Generation] = []
         batch = self.cfg.batch_size
+        fim = self._fim_de_sequencia()
+        cuda = self.torch.cuda.is_available()
         for start in range(0, len(prompts), batch):
             chunk = [self._wrap(p) for p in prompts[start : start + batch]]
             encoded = self.tokenizer(
@@ -115,6 +133,9 @@ class HFBackend:
                 max_length=self.cfg.max_context_tokens - self.cfg.max_new_tokens,
             ).to(self.model.device)
 
+            if cuda:
+                self.torch.cuda.reset_peak_memory_stats()
+                self.torch.cuda.synchronize()
             began = time.perf_counter()
             with self.torch.inference_mode():
                 output = self.model.generate(
@@ -125,18 +146,33 @@ class HFBackend:
                     top_p=None,
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
-            elapsed = (time.perf_counter() - began) * 1000 / max(1, len(chunk))
+            if cuda:
+                self.torch.cuda.synchronize()
+            lote_ms = (time.perf_counter() - began) * 1000
+            pico_mb = self.torch.cuda.max_memory_allocated() / 2**20 if cuda else None
 
+            # Comprimento do lote com preenchimento: é onde a saída começa. O
+            # número de tokens do prompt é o da máscara de atenção, sem o
+            # preenchimento (até a E05 gravava-se o comprimento preenchido).
+            largura = int(encoded["input_ids"].shape[1])
             for i in range(len(chunk)):
-                prompt_len = int(encoded["input_ids"][i].shape[0])
-                completion = output[i][prompt_len:]
+                completion = output[i][largura:]
+                gerados = completion.tolist()
+                n_gerados = len(gerados)
+                for pos, token in enumerate(gerados):
+                    if token in fim:
+                        n_gerados = pos + 1
+                        break
                 text = self.tokenizer.decode(completion, skip_special_tokens=True)
                 results.append(
                     Generation(
                         text=text,
-                        prompt_tokens=prompt_len,
-                        completion_tokens=int(completion.shape[0]),
-                        latency_ms=elapsed,
+                        prompt_tokens=int(encoded["attention_mask"][i].sum()),
+                        completion_tokens=n_gerados,
+                        latency_ms=lote_ms / max(1, len(chunk)),
+                        batch_ms=lote_ms,
+                        batch_size=len(chunk),
+                        gpu_mem_peak_mb=round(pico_mb, 1) if pico_mb is not None else None,
                     )
                 )
         return results
@@ -152,6 +188,7 @@ class HFBackend:
             "revision": self.cfg.revision,
             "quantization": self.cfg.quantization,
             "dtype": self.cfg.dtype,
+            "batch_size": self.cfg.batch_size,
         }
 
 
@@ -203,6 +240,8 @@ class VLLMBackend:
                     prompt_tokens=len(output.prompt_token_ids),
                     completion_tokens=len(completion.token_ids),
                     latency_ms=elapsed,
+                    batch_ms=elapsed * max(1, len(prompts)),
+                    batch_size=len(prompts),
                 )
             )
         return results

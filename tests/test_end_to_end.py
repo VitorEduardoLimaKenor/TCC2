@@ -453,3 +453,57 @@ def test_varredura_nao_reporta_log_antigo_de_outra_identidade(universo, monkeypa
     with pytest.raises(RuntimeError, match="outro avaliador de EX"):
         varrer()
     index.close()
+
+
+def test_custo_mede_uma_pergunta_por_vez(universo):
+    """A passagem de custo usa lote unitário, inclui o rascunho de C4 e é retomável."""
+    import json
+
+    from tcc_rag.custo import medir, resumir
+
+    exemplos, schemas, tmp_path = universo
+    cfg = ExperimentConfig()
+    cfg.paths.work_dir = str(tmp_path / "artifacts")
+    cfg.data.min_questions_per_db = 10
+    cfg.data.min_families_per_db = 3
+    cfg.qdrant.mode = "local"
+    cfg.qdrant.path = str(tmp_path / "qdrant")
+    cfg.generation.backend = "dummy"
+    cfg.retrieval.k = 2
+    cfg.retrieval.n_candidates = 6
+
+    atribuidos = part.partition(exemplos, cfg.data)
+    pool = build_demos(atribuidos, partition=part.POOL)
+    embedder = StubEmbedder()
+    index = DemoIndex(cfg.qdrant, dimension=DIM)
+    index.recreate()
+    index.upsert(pool, embedder.encode([d.question_delex for d in pool], kind="passage"))
+
+    itens = build_test_items(atribuidos, partition=part.VAL, languages=("pt",))[:4]
+    assert itens
+    backend = ContaGeracoes(DummyBackend(cfg.generation))
+    seletor = DemoSelector(cfg, index, embedder, pool)
+    destino = tmp_path / "custo" / "custo.jsonl"
+    condicoes = ("C0", "C3", "C4")
+
+    escritas = medir(cfg, itens, seletor, backend, schemas, destino, condicoes, {"split": "val"})
+    assert escritas == len(itens) * len(condicoes)
+    # 1 aquecimento + 1 geração final por medição + 1 rascunho por item em C4
+    assert backend.prompts == 1 + escritas + len(itens)
+
+    linhas = [json.loads(l) for l in destino.read_text(encoding="utf-8").splitlines()]
+    for linha in linhas:
+        assert linha["tamanho_lote"] == 1
+        assert linha["total_ms"] >= linha["geracao_ms"]
+        if linha["condition"] == "C4":
+            assert linha["rascunho_prompt_tokens"] > 0
+            assert linha["prompt_tokens_total"] == linha["prompt_tokens"] + linha["rascunho_prompt_tokens"]
+        else:
+            assert linha["rascunho_ms"] is None
+            assert linha["prompt_tokens_total"] == linha["prompt_tokens"]
+
+    # Retomada: nada é medido de novo.
+    assert medir(cfg, itens, seletor, backend, schemas, destino, condicoes, {"split": "val"}) == 0
+    resumo = resumir(linhas)
+    assert set(resumo) == {"C0|pt", "C3|pt", "C4|pt"} and resumo["C4|pt"]["n"] == len(itens)
+    index.close()
