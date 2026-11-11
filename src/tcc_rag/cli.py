@@ -542,7 +542,8 @@ def cmd_analise(args) -> int:
         estratos = json.loads(caminho_estratos.read_text(encoding="utf-8"))
 
     custo_rows: list[dict] = []
-    for arquivo in sorted((cfg.work / "custo").glob(f"custo-*-{rows[0]['config_hash']}-*.jsonl")):
+    # Só as medições de custo do mesmo split e da mesma configuração.
+    for arquivo in sorted((cfg.work / "custo").glob(f"custo-{split}-{rows[0]['config_hash']}-*.jsonl")):
         custo_rows += [json.loads(l) for l in arquivo.read_text(encoding="utf-8").splitlines() if l.strip()]
 
     ex_distinct = None
