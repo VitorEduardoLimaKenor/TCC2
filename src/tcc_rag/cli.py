@@ -518,6 +518,71 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def cmd_analise(args) -> int:
+    """Análise completa de um split: contrastes, H2, H3, estratos, custo, erros e poder.
+
+    Lê os mesmos logs que `evaluate` e `stats` (mesmas regras de seleção),
+    junta os estratos de literal traduzido e as medições de `custo`, se
+    existirem, e grava `analise/analise-<split>-<config_hash>.json`. Com
+    `--sensibilidade-distinct`, reavalia cada predição com a variante do
+    avaliador oficial que preserva DISTINCT (CPU; não altera os logs).
+    """
+    from . import analise
+
+    cfg = _cfg(args)
+    rows = _report_rows(cfg, args)
+    if not rows:
+        print("log vazio", file=sys.stderr)
+        return 1
+    split = rows[0]["split"]
+
+    estratos = None
+    caminho_estratos = cfg.work / "estratos_literais.json"
+    if caminho_estratos.is_file():
+        estratos = json.loads(caminho_estratos.read_text(encoding="utf-8"))
+
+    custo_rows: list[dict] = []
+    for arquivo in sorted((cfg.work / "custo").glob(f"custo-*-{rows[0]['config_hash']}-*.jsonl")):
+        custo_rows += [json.loads(l) for l in arquivo.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    ex_distinct = None
+    if args.sensibilidade_distinct:
+        from .evaluation.ex_oficial import AvaliadorEX
+        from .evaluation.sandbox import Sandbox
+
+        schemas = load_schemas(cfg.paths.spider_root)
+        avaliador = AvaliadorEX(Sandbox(cfg.sandbox), keep_distinct=True)
+        ex_distinct = {}
+        for row in rows:
+            veredito = avaliador.avaliar(schemas[row["db_id"]].sqlite_path, row["generated_sql"], row["gold_sql"])
+            ex_distinct[(row["condition"], row["lang"], row["example_id"])] = veredito.correto
+
+    from .pipeline import load_manifest as _manifesto
+
+    n_teste = sum(1 for e in _manifesto(cfg, warn=False) if e.partition == "test")
+    resultado = analise.analisar(rows, estratos=estratos, custo_rows=custo_rows or None,
+                                 semente=cfg.data.seed, n_teste=n_teste, ex_distinct=ex_distinct)
+    resultado["selecao"] = _selection(rows, _runs_dir(cfg, args))
+    destino = cfg.work / "analise" / f"analise-{split}-{rows[0]['config_hash']}.json"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    write_json(destino, resultado)
+
+    print(f"split={split}  exemplos={resultado['n_exemplos']}  "
+          f"referências inválidas={len(resultado['referencias_invalidas'])}")
+    print(f"{'cond|lang':<10} {'EX':>6} {'EM':>6} {'n/exec':>6} {'hit':>6} {'tok ent':>8}")
+    for chave, c in resultado["celulas"].items():
+        em = "--" if c["em_oficial"] is None else f"{100 * c['em_oficial']:.1f}"
+        print(f"{chave:<10} {100 * c['ex']:>6.1f} {em:>6} {c['nao_executaveis']:>6} "
+              f"{100 * c['acerto_estrutural']:>6.1f} {c['prompt_tokens_total_medio']:>8.0f}")
+    for chave, c in resultado["contrastes"].items():
+        print(f"{chave:<12} {c['diferenca_pp']:+6.2f} pp  IC95 [{c['ic95'][0]:+.2f}, {c['ic95'][1]:+.2f}]  "
+              f"p={c['mcnemar']['p_value']:.4f}  discordantes={c['discordantes']}  ({c['papel']})")
+    for nome, d in (resultado.get("diferencas_em_diferencas") or {}).items():
+        print(f"{nome}: Δ={d['delta_pp']:+.2f} pp  IC95 [{d['low']:+.2f}, {d['high']:+.2f}]")
+    print(f"escrito: {destino}")
+    return 0
+
+
 def cmd_tables(args) -> int:
     cfg = _cfg(args)
     from .report.tables import write_all
@@ -616,6 +681,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),
         ("stats", cmd_stats, "McNemar, bootstrap e diferenças em diferenças"),
         ("tables", cmd_tables, "gera as tabelas LaTeX do Capítulo 5"),
+        ("analise", cmd_analise, "análise completa de um split (contrastes, H2, H3, custo, erros, poder)"),
     ):
         p = sub.add_parser(name, help=helptext)
         p.set_defaults(func=fn)
@@ -646,7 +712,10 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--run-id", dest="run_id", required=True)
             p.add_argument("--novo-run-id", dest="novo_run_id", default=None)
             p.add_argument("--runs-dir", default=None)
-        if name in {"evaluate", "stats", "tables"}:
+        if name == "analise":
+            p.add_argument("--sensibilidade-distinct", dest="sensibilidade_distinct", action="store_true",
+                           help="reavalia com a variante do avaliador que preserva DISTINCT")
+        if name in {"evaluate", "stats", "tables", "analise"}:
             p.add_argument("--run-id", dest="run_id", nargs="+", default=None,
                            help="logs a combinar explicitamente (sem observações duplicadas)")
             p.add_argument("--config-hash", default=None,
