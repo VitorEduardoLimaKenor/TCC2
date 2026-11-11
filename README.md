@@ -182,6 +182,56 @@ antes do teste. C3×C2 é a comparação primária; C4×C2 preserva H1; o contra
 linguístico de H2 continua usando C4 e C0. A célula de inspeção do notebook
 reutiliza a seleção do último `evaluate` bem-sucedido.
 
+### Custo (E06)
+
+Cada linha do log traz `prompt_tokens` e `completion_tokens` reais, sem o
+preenchimento do lote, o tempo do lote (`latencia_lote_ms`, `tamanho_lote`), o
+pico de memória da GPU (`gpu_mem_pico_mb`) e, em C4, o custo da consulta
+preliminar (`rascunho_*`), contado uma vez por pergunta e idioma. `latency_ms`
+é o tempo do lote dividido pelos itens: custo médio de geração, não latência
+por pergunta. A latência fim a fim é medida à parte, com uma pergunta por vez:
+
+```bash
+tcc-rag custo --config configs/confirmatorio.yaml --split test --limit 100 --langs pt
+```
+
+A passagem inclui a seleção (com vetorização sem cache e, em C4, a geração da
+consulta preliminar), a montagem do prompt e a geração final; grava
+`custo/custo-<split>-<config_hash>-<amostra>.jsonl` e é retomável.
+
+### Análise
+
+```bash
+tcc-rag analise --config configs/confirmatorio.yaml --split test --sensibilidade-distinct
+```
+
+Grava `analise/analise-<split>-<config_hash>.json` com tudo o que a monografia
+reporta: acurácia por condição, idioma e dificuldade; contrastes pareados
+(McNemar exato e bootstrap pareado estratificado por banco) com correção de
+Holm na família confirmatória (C3−C2 e C4−C2 em português); diferenças em
+diferenças (H2); associação entre acerto estrutural e correção (H3), bruta e
+ajustada pela dificuldade; estratos de literal traduzido; custo; sobreposição
+das demonstrações; rubrica automática de erros; sensibilidade ao DISTINCT; e,
+na validação, o poder exato do McNemar para o tamanho do teste. As tabelas e as
+figuras do Capítulo 5 saem desse arquivo, sem transcrição manual:
+
+```bash
+python scripts/tabelas_cap5.py <analise-val.json> <analise-test.json> <Textual/tabelas>
+python scripts/figuras/resultados.py <analise-test.json> <Images>
+python scripts/figuras/f01_arquitetura.py <Images>
+python scripts/figuras/f02_particao.py data/spider <manifest.json> <Images>
+python scripts/perfil_dificuldade.py data/spider <manifest.json> perfil.json
+python scripts/figuras/f04_dificuldade.py perfil.json <Images>
+```
+
+### Rodada confirmatória
+
+`configs/confirmatorio.yaml` é a configuração congelada (k=4, N=25, λ=0,95;
+revisões do Qwen2.5-Coder-7B-Instruct e do multilingual-e5-base fixadas por
+SHA). Os roteiros executados no Colab (GPU T4) estão em `scripts/colab/`:
+`preparar.sh`, `validacao.sh`, `teste.sh` (recusa árvore suja: todas as linhas
+do teste saem de uma única revisão) e `custo_e_analise.sh`.
+
 ## Acurácia de execução
 
 A EX é a do avaliador oficial do Spider, o `exec_eval.py` do
@@ -289,8 +339,10 @@ src/tcc_rag/
     ex_oficial.py     EX pelo avaliador oficial do Spider (cópia em _spider_oficial/)
     metrics.py        EM, acerto estrutural, agregados
     stats.py          McNemar exato, bootstrap pareado, diferenças em diferenças
+  analise.py          análise completa de um split (o que a monografia reporta)
+  custo.py            latência fim a fim por pergunta, com lote unitário
   report/
-    tables.py         tabelas LaTeX do Capítulo 5
+    tables.py         tabelas LaTeX (versão inicial; as do Cap. 5 vêm de scripts/tabelas_cap5.py)
 ```
 
 ## No Colab e no Kaggle
