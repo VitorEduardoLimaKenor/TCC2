@@ -439,3 +439,18 @@ def test_digito_do_conjunto_distingue_amostras():
     itens = _itens_de_teste()
     assert item_set_digest(subsample(itens, 40)) != item_set_digest(subsample(itens, 80))
     assert item_set_digest(subsample(itens, 40)) == item_set_digest(subsample(itens, 40))
+
+
+def test_perguntas_pt_copiadas_do_ingles_sao_recusadas():
+    """O arquivo provisório (PT = EN) não pode alimentar índice nem geração."""
+    from tcc_rag.cli import exigir_traducao
+    from tcc_rag.schemas import Example
+
+    def ex(i: int, pt: str) -> Example:
+        return Example(example_id=f"e{i}", db_id="d", question_en=f"question {i}", question_pt=pt,
+                       sql="SELECT 1", difficulty="easy", family_id="f")
+
+    exigir_traducao([ex(i, f"pergunta {i}") for i in range(40)])
+    exigir_traducao([ex(i, f"pergunta {i}") for i in range(39)] + [ex(99, "question 99")])  # 2,5%: tolerado
+    with pytest.raises(ValueError, match="arquivo provisório"):
+        exigir_traducao([ex(i, f"question {i}") for i in range(40)])

@@ -47,6 +47,28 @@ def _cfg(args) -> ExperimentConfig:
     return ExperimentConfig.load(_config_path(args))
 
 
+LIMITE_PT_IGUAL_EN = 0.05
+
+
+def exigir_traducao(examples) -> None:
+    """Recusa gerar sobre um manifesto cujas perguntas em português copiam as em inglês.
+
+    Todas as rodadas de agosto e setembro de 2026 usaram, sem que se notasse, um
+    `questions_pt.json` provisório que reproduzia o texto em inglês (E01). Com a
+    tradução de José e Cozman (2021), nenhuma pergunta do recorte coincide nos
+    dois idiomas; acima de 5% de coincidência, o arquivo não é a tradução.
+    """
+    if not examples:
+        return
+    iguais = sum(1 for e in examples if e.question_pt.strip() == e.question_en.strip())
+    if iguais / len(examples) > LIMITE_PT_IGUAL_EN:
+        raise ValueError(
+            f"{iguais} de {len(examples)} perguntas em português são idênticas às em inglês: o "
+            "`questions_pt.json` deste diretório é o arquivo provisório, não a tradução. Gere-o com "
+            "`scripts/gerar_questions_pt.py` e refaça `prepare` e `partition`."
+        )
+
+
 # --------------------------------------------------------------- comandos
 
 
@@ -131,6 +153,7 @@ def cmd_index(args) -> int:
     from .retrieval.index import DemoIndex
 
     examples = load_manifest(cfg)
+    exigir_traducao(examples)
     demos = build_demos(examples, partition=part.POOL)
     if not demos:
         print("pool vazio: rode `partition` antes", file=sys.stderr)
@@ -165,6 +188,7 @@ def cmd_run(args) -> int:
     from .runner import Runner
 
     examples = load_manifest(cfg)
+    exigir_traducao(examples)
     split = args.split
     from .pipeline import conteudo_digest
 
@@ -236,6 +260,7 @@ def cmd_sweep(args) -> int:
     from .sweep import render, run_sweep, best
 
     examples = load_manifest(cfg)
+    exigir_traducao(examples)
     items = build_test_items(
         examples, partition="val",
         languages=tuple(args.langs) if args.langs else ("pt",),
@@ -301,6 +326,7 @@ def cmd_custo(args) -> int:
     from .retrieval.selectors import DemoSelector
 
     examples = load_manifest(cfg)
+    exigir_traducao(examples)
     items = build_test_items(
         examples, partition=args.split,
         languages=tuple(args.langs) if args.langs else ("pt",),

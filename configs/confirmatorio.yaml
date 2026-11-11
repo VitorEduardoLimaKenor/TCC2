@@ -11,10 +11,13 @@
 # nao e mais editado.
 name: confirmatorio
 
+# /content/tcc e um link simbolico para a pasta de dados e artefatos (no Colab,
+# uma pasta do Drive; ver scripts/colab/preparar.sh). Os caminhos nao dependem
+# do nome da pasta nem da conta do Drive.
 paths:
-  spider_root: /content/drive/MyDrive/tcc/data/spider
-  questions_pt: /content/drive/MyDrive/tcc/data/spider_pt/questions_pt.json
-  work_dir: /content/drive/MyDrive/tcc/artifacts
+  spider_root: /content/tcc/data/spider
+  questions_pt: /content/tcc/data/spider_pt/questions_pt.json
+  work_dir: /content/tcc/artifacts
 
 data:
   min_questions_per_db: 90
@@ -36,7 +39,7 @@ embedding:
 
 qdrant:
   mode: local
-  path: /content/drive/MyDrive/tcc/artifacts/qdrant-confirmatorio
+  path: /content/tcc/artifacts/qdrant-confirmatorio
   collection: demos
   distance: Cosine
 
