@@ -573,3 +573,32 @@ def test_fumaca_tem_colecao_propria_e_notebook_prepara_a_rodada_real():
     assert all("nltk.downloader punkt_tab" in celulas[i] for i in instalacoes)
     rodada = next(i for i, c in enumerate(celulas) if "tcc-rag run --config configs/colab.yaml" in c)
     assert any("tcc-rag index --config configs/colab.yaml" in c for c in celulas[: rodada + 1])
+
+
+def test_indice_reaberto_confere_com_a_referencia(tmp_path):
+    """O índice persistido, relido em outro processo lógico, mantém o digest de
+    `index`; um vetor alterado além da tolerância é recusado."""
+    cfg = ExperimentConfig().qdrant
+    cfg.path = str(tmp_path / "qdrant")
+    rng = np.random.default_rng(7)
+    vetores = rng.normal(size=(2, 4)).astype(np.float32)
+    index = DemoIndex(cfg, dimension=4)
+    index.recreate()
+    index.upsert(_pool(), vetores)
+    emb = SimpleNamespace(identidade_essencial={"modelo": "m"}, identidade={"modelo": "m"})
+    identidade = identidade_indice(_pool(), emb, index.gravar_referencia())
+    index.gravar_identidade(identidade)
+    index.close()
+
+    reaberto = DemoIndex(cfg, dimension=4)
+    assert _indice_conferido(reaberto, _pool(), emb) == identidade["digest"]
+    # ruído de normalização, muito abaixo da tolerância: mesmo digest
+    uids, matriz = reaberto._ler_vetores()
+    assert np.allclose(matriz / np.linalg.norm(matriz, axis=1, keepdims=True),
+                       vetores / np.linalg.norm(vetores, axis=1, keepdims=True), atol=1e-6)
+    alterados = vetores.copy()
+    alterados[0, 0] += 0.5
+    reaberto.upsert(_pool(), alterados)
+    with pytest.raises(ValueError, match="outro pool"):
+        _indice_conferido(reaberto, _pool(), emb)
+    reaberto.close()

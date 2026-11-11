@@ -34,10 +34,20 @@ class DemoIndex:
 
         self.cfg = cfg
         self.dimension = dimension
-        if cfg.mode == "local":
-            self.client = QdrantClient(path=cfg.path)
+        self._abrir()
+
+    def _abrir(self) -> None:
+        from qdrant_client import QdrantClient
+
+        if self.cfg.mode == "local":
+            self.client = QdrantClient(path=self.cfg.path)
         else:
-            self.client = QdrantClient(url=cfg.url)
+            self.client = QdrantClient(url=self.cfg.url)
+
+    def reabrir(self) -> None:
+        """Fecha e reabre o cliente: no modo local, relê a coleção do disco."""
+        self.close()
+        self._abrir()
 
     # ---------------------------------------------------------- identidade
 
@@ -54,16 +64,23 @@ class DemoIndex:
             json.dumps(identidade, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8"
         )
 
-    def vetores_sha256(self, casas: int = 6) -> str:
-        """SHA-256 dos vetores gravados, por uid, arredondados a `casas` decimais.
+    @property
+    def referencia_path(self) -> Path:
+        base = Path(self.cfg.path)
+        return base.with_name(f"{base.name}.{self.cfg.collection}.vetores.npz")
 
-        Lê o próprio índice: o digest descreve o que a busca vai usar, não o
-        que se esperava gravar.
-        """
-        import hashlib
+    TOLERANCIA_VETORES = 1e-5
+    """Diferença máxima, por componente, entre o índice e a referência gravada.
 
-        import numpy as np
+    O Qdrant local normaliza os vetores ao carregar a coleção, e o resultado
+    difere do estado em memória logo após o `upsert` (e pode diferir entre
+    processadores) na ordem de 1e-8. Um hash dos vetores lidos do índice, mesmo
+    arredondado, muda com esse ruído; por isso a conferência é por tolerância
+    contra uma referência gravada por `index`, e o hash é o da referência.
+    """
 
+    def _ler_vetores(self) -> tuple[list[str], np.ndarray]:
+        """Vetores do próprio índice, em float32, ordenados por uid."""
         vetores = {}
         offset = None
         while True:
@@ -72,13 +89,55 @@ class DemoIndex:
                 with_payload=["uid"], with_vectors=True,
             )
             for ponto in pontos:
-                vetores[ponto.payload["uid"]] = np.round(np.asarray(ponto.vector, dtype=np.float64), casas)
+                vetores[ponto.payload["uid"]] = np.asarray(ponto.vector, dtype=np.float32)
             if offset is None:
                 break
+        uids = sorted(vetores)
+        matriz = np.stack([vetores[u] for u in uids]) if uids else np.zeros((0, self.dimension), np.float32)
+        return uids, matriz
+
+    @staticmethod
+    def _sha_vetores(uids: list[str], matriz: np.ndarray) -> str:
+        import hashlib
+
         sha = hashlib.sha256()
-        for uid in sorted(vetores):
-            sha.update(uid.encode("utf-8") + b"\x1f" + vetores[uid].tobytes())
+        for uid, vetor in zip(uids, matriz):
+            sha.update(uid.encode("utf-8") + b"\x1f" + np.ascontiguousarray(vetor, dtype=np.float32).tobytes())
         return sha.hexdigest()
+
+    def gravar_referencia(self) -> str:
+        """Grava os vetores do índice como referência e devolve o SHA-256 dela.
+
+        Chamado por `index` logo depois do `upsert`. O cliente é reaberto
+        antes da leitura: no modo local, os vetores em memória logo após o
+        `upsert` não passaram pela normalização feita na carga, e a referência
+        precisa descrever o índice como as execuções vão lê-lo. A referência
+        fica ao lado do diretório do Qdrant e viaja com ele.
+        """
+        self.reabrir()
+        uids, matriz = self._ler_vetores()
+        self.referencia_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.referencia_path.open("wb") as fh:
+            np.savez(fh, uids=np.array(uids), vetores=matriz)
+        return self._sha_vetores(uids, matriz)
+
+    def vetores_sha256(self) -> str:
+        """Identidade dos vetores do índice.
+
+        Lê o próprio índice: o digest descreve o que a busca vai usar, não o
+        que se esperava gravar. Havendo referência gravada por `index`, o
+        índice é comparado a ela por tolerância e, coincidindo, o SHA devolvido
+        é o da referência, estável entre sessões e máquinas. Sem referência,
+        ou se o índice divergir dela, o SHA é o dos vetores lidos.
+        """
+        uids, matriz = self._ler_vetores()
+        if self.referencia_path.exists():
+            with np.load(self.referencia_path, allow_pickle=False) as ref:
+                ref_uids, ref_matriz = [str(u) for u in ref["uids"]], ref["vetores"]
+            if (ref_uids == uids and ref_matriz.shape == matriz.shape
+                    and np.allclose(ref_matriz, matriz, rtol=0.0, atol=self.TOLERANCIA_VETORES)):
+                return self._sha_vetores(ref_uids, ref_matriz)
+        return self._sha_vetores(uids, matriz)
 
     def ler_identidade(self) -> dict | None:
         if not self.identidade_path.exists():
@@ -93,6 +152,7 @@ class DemoIndex:
         # A identidade antiga deixa de valer assim que a coleção é apagada; se a
         # construção cair no meio, o índice fica sem identidade e é recusado.
         self.identidade_path.unlink(missing_ok=True)
+        self.referencia_path.unlink(missing_ok=True)
         distance = getattr(Distance, self.cfg.distance.upper(), Distance.COSINE)
         if self.client.collection_exists(self.cfg.collection):
             self.client.delete_collection(self.cfg.collection)

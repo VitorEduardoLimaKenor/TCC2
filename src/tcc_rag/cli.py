@@ -144,7 +144,9 @@ def cmd_index(args) -> int:
     index = DemoIndex(cfg.qdrant, dimension=vectors.shape[1])
     index.recreate()
     total = index.upsert(demos, vectors)
-    identidade = identidade_indice(demos, embedder, index.vetores_sha256())
+    # A referência dos vetores é gravada aqui; `run`, `sweep` e `custo` conferem
+    # o índice persistido contra ela por tolerância (ver `DemoIndex`).
+    identidade = identidade_indice(demos, embedder, index.gravar_referencia())
     index.gravar_identidade(identidade)
     print(f"indexadas {total} demonstrações ({len(demos)//2} exemplos × 2 idiomas)")
     print(f"identidade do índice: {identidade['digest']} ({index.identidade_path})")

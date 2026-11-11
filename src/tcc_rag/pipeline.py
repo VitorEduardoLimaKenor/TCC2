@@ -203,7 +203,8 @@ def identidade_indice(pool: list[Demo], embedder, vetores_sha256: str) -> dict:
     grava esta identidade ao lado do índice; `run` e `sweep` a conferem.
 
     O digest vem do conteúdo: os payloads do pool, os vetores gravados no
-    índice (arredondados, `DemoIndex.vetores_sha256`) e o que define o espaço
+    índice (`DemoIndex.vetores_sha256`, conferidos por tolerância contra a
+    referência gravada por `index`) e o que define o espaço
     das consultas (modelo, revisão, normalização e prefixos). As versões das
     bibliotecas ficam só como proveniência: reconstruir o índice depois de uma
     atualização que não mude os vetores dá o mesmo digest, e a retomada segue.
