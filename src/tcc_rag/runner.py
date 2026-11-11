@@ -60,6 +60,9 @@ prompt na identidade e `indice_digest` pelo conteúdo.
 tempo e tamanho do lote, pico de memória da GPU e custo do rascunho de C4 em
 cada linha. Linhas de formatos diferentes não se retomam nem se combinam."""
 
+ITENS_POR_BLOCO_EM_LOTES = 10
+"""Uma condição é gerada e gravada em blocos de 10 lotes do backend."""
+
 # Marcas que substituem pergunta e DDL ao calcular o hash do template do
 # prompt de rascunho: o que sobra é a instrução e os rótulos do idioma.
 _MARCA_PERGUNTA = "<<PERGUNTA>>"
@@ -306,10 +309,24 @@ class Runner:
     # ---------------------------------------------------------------- laço
 
     def run_condition(self, items: list[TestItem], condition: str) -> int:
+        """Gera e avalia uma condição, em blocos gravados à medida que terminam.
+
+        Cada bloco tem um número de itens múltiplo do tamanho do lote do
+        backend, de modo que a composição dos lotes é a mesma de uma geração
+        única sobre todos os itens. Gravar por bloco limita o que uma queda de
+        sessão desperdiça e deixa o progresso visível no log.
+        """
         todo = self._pendentes(items, condition)
         if not todo:
             return 0
+        bloco = max(1, self.cfg.generation.batch_size) * ITENS_POR_BLOCO_EM_LOTES
+        written = 0
+        for inicio in range(0, len(todo), bloco):
+            written += self._run_bloco(todo[inicio : inicio + bloco], condition)
+            print(f"[{condition}] {written}/{len(todo)} gravados", flush=True)
+        return written
 
+    def _run_bloco(self, todo: list[TestItem], condition: str) -> int:
         if condition == "C4":
             self.prepare_drafts(todo)
 
