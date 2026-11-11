@@ -22,8 +22,18 @@ if [ ! -f $D/spider/tables.json ]; then
 fi
 (cd $D/spider && sha256sum --quiet -c /content/TCC2/scripts/colab/spider.sha256) && echo "Spider conferido: 26 arquivos"
 if [ ! -f $D/spider_pt/questions_pt.json ]; then
-  hf download Marchanjo/spider-pt --repo-type dataset --revision d9cb7bf3db3f837856d2730cb1bd24fc4adda679 \
-     --local-dir /content/marchanjo_spider_pt > /dev/null
+  # Dois arquivos, baixados diretamente na revisao fixada (com novas tentativas: o Hub
+  # limita requisicoes anonimas) e conferidos por SHA-256 antes do uso.
+  mkdir -p /content/marchanjo_spider_pt
+  R=https://huggingface.co/datasets/Marchanjo/spider-pt/resolve/d9cb7bf3db3f837856d2730cb1bd24fc4adda679
+  for f in train_spider.json dev.json; do
+    curl -sfL --retry 10 --retry-delay 20 --retry-all-errors -o /content/marchanjo_spider_pt/$f $R/$f
+  done
+  (cd /content/marchanjo_spider_pt && sha256sum --quiet -c - <<'SHA'
+642b07c284e3da9a2282e1db71801fefe5276730327c9a26349aa7b9e2c03088  train_spider.json
+673721b6d40d66e9782f02f9fdfc868c5bf7c6bf8710a99ed732ae978b3fcd7c  dev.json
+SHA
+  )
   python -I scripts/gerar_questions_pt.py $D/spider /content/marchanjo_spider_pt $D/spider_pt/questions_pt.json > /dev/null
 fi
 echo "e5584fad25fc3364a3d644e85b39f8a1795472aa13111fa4e62a2f3bc4209d0e  $D/spider_pt/questions_pt.json" | sha256sum --quiet -c - && echo "questions_pt.json conferido"
