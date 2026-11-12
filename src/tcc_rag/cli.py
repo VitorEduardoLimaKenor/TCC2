@@ -190,6 +190,8 @@ def cmd_run(args) -> int:
     examples = load_manifest(cfg)
     exigir_traducao(examples)
     split = args.split
+    if split == "test":
+        _exigir_congelamento(cfg)
     from .pipeline import conteudo_digest
 
     # O conteúdo no nome é o do split inteiro, nos dois idiomas, antes de
@@ -369,6 +371,64 @@ def cmd_custo(args) -> int:
         pico = "--" if v["gpu_mem_pico_mb_max"] is None else f"{v['gpu_mem_pico_mb_max']:.0f}"
         print(f"{chave:<10} {v['n']:>4} {v['total_ms_p50']:>9.0f} {v['total_ms_p95']:>9.0f} "
               f"{v['prompt_tokens_total_media']:>8.0f} {v['completion_tokens_total_media']:>8.0f} {pico:>9}")
+    return 0
+
+
+def _exigir_congelamento(cfg: ExperimentConfig) -> None:
+    """O teste só é gerado sob o registro de congelamento, com a mesma configuração e revisão."""
+    from .congelamento import ARQUIVO
+    from .proveniencia import codigo_revisao
+
+    caminho = cfg.work / ARQUIVO
+    if not caminho.is_file():
+        raise ValueError(f"o conjunto de teste está selado: falta o registro de congelamento ({caminho}). "
+                         "Rode a validação completa e `tcc-rag congelar`.")
+    gravado = json.loads(caminho.read_text(encoding="utf-8"))
+    if gravado["configuracao"]["config_hash"] != cfg.config_hash:
+        raise ValueError("a configuração mudou depois do congelamento: "
+                         f"{gravado['configuracao']['config_hash']} no registro, {cfg.config_hash} agora")
+    if gravado["codigo_revisao"] != codigo_revisao():
+        raise ValueError("a revisão do código mudou depois do congelamento: "
+                         f"{gravado['codigo_revisao']} no registro, {codigo_revisao()} agora")
+
+
+def cmd_congelar(args) -> int:
+    """Portão de sanidade da validação e registro de congelamento (E15).
+
+    Confere se a validação completa rodou como previsto e, passando, grava
+    `congelamento.json`, uma única vez. Sem esse registro, `run --split test`
+    se recusa a começar. Os critérios são de funcionamento do experimento e não
+    olham os contrastes entre as condições.
+    """
+    from .congelamento import ARQUIVO, congelar
+    from .logging_io import report_rows
+    from .pipeline import runs_dir
+    from .proveniencia import codigo_revisao
+
+    cfg = _cfg(args)
+    examples = load_manifest(cfg, warn=False)
+    exigir_traducao(examples)
+    n_val = sum(1 for e in examples if e.partition == "val")
+    n_teste = sum(1 for e in examples if e.partition == "test")
+    rows = report_rows(runs_dir(cfg), config_hash=cfg.config_hash, split="val")
+    if not rows:
+        print("validação ausente: nada a congelar", file=sys.stderr)
+        return 1
+    pode, reg = congelar(cfg, _config_path(args), rows, n_val, n_teste, codigo_revisao())
+    if not pode:
+        conf = reg.get("conferencia") or reg.get("_conferencia_da_retomada") or {}
+        print("CONGELAMENTO RECUSADO — o teste permanece selado:", file=sys.stderr)
+        for falha in conf.get("falhas") or conf.get("divergencias") or ["motivo não identificado"]:
+            print(f"  - {falha}", file=sys.stderr)
+        return 1
+    print(f"registro de congelamento: {cfg.work / ARQUIVO}")
+    print(f"  congelado em {reg['congelado_em_utc']}  config_hash={reg['configuracao']['config_hash']}  "
+          f"código={reg['codigo_revisao'][:12]}")
+    print(f"  teste: {reg['teste']['perguntas']} perguntas, {reg['teste']['linhas_esperadas']} linhas esperadas")
+    for chave, bloco in (reg["validacao"].get("poder") or {}).items():
+        a5 = bloco.get("alfa_0.05", {})
+        print(f"  poder {chave}: discordância {100 * bloco['taxa_discordancia_observada']:.1f}%, "
+              f"menor diferença detectável (80%, alfa 5%) = {a5.get('dmd_80')}")
     return 0
 
 
@@ -703,6 +763,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("run", cmd_run, "executa as condições experimentais"),
         ("sweep", cmd_sweep, "varre a grade de k, lambda e N na validação"),
         ("custo", cmd_custo, "mede a latência fim a fim por pergunta, com lote unitário"),
+        ("congelar", cmd_congelar, "portão de sanidade da validação e registro de congelamento"),
         ("estratos", cmd_estratos, "estrato de literal traduzido (LT/SL), pré-registrado"),
         ("reavaliar", cmd_reavaliar, "recalcula EX e EM de um log com os avaliadores atuais"),
         ("evaluate", cmd_evaluate, "agrega o log em métricas"),

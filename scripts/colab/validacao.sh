@@ -1,7 +1,7 @@
 #!/bin/bash
 # E11: validacao PT/EN completa (275 perguntas, 5 condicoes), configuracao candidata.
 # Retomavel: o que ja esta no log e pulado.
-set -u
+set -eu -o pipefail
 cd /content/TCC2 || exit 1
 CFG=configs/confirmatorio.yaml
 F='it/s\]|s/it\]|Warning|warn'

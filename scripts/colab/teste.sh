@@ -2,7 +2,7 @@
 # E16: teste confirmatorio (471 perguntas, 5 condicoes, 2 idiomas).
 # So depois do manifesto de congelamento (docs/congelamento-*.md). Retomavel.
 # Exige arvore limpa: todas as linhas do teste saem de uma unica revisao do codigo.
-set -u
+set -eu -o pipefail
 cd /content/TCC2 || exit 1
 CFG=configs/confirmatorio.yaml
 F='it/s\]|s/it\]|Warning|warn'

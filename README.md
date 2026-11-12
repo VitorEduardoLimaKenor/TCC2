@@ -229,8 +229,26 @@ python scripts/figuras/f04_dificuldade.py perfil.json <Images>
 `configs/confirmatorio.yaml` é a configuração congelada (k=4, N=25, λ=0,95;
 revisões do Qwen2.5-Coder-7B-Instruct e do multilingual-e5-base fixadas por
 SHA). Os roteiros executados no Colab (GPU T4) estão em `scripts/colab/`:
-`preparar.sh`, `validacao.sh`, `teste.sh` (recusa árvore suja: todas as linhas
-do teste saem de uma única revisão) e `custo_e_analise.sh`.
+`dados.sh` (baixa e confere o Spider e a tradução por SHA-256), `preparar.sh`,
+`validacao.sh`, `teste.sh` (recusa árvore suja: todas as linhas do teste saem
+de uma única revisão) e `custo_e_analise.sh`; `rodada.sh` encadeia tudo e é
+retomável.
+
+O conjunto de teste é selado por código: `tcc-rag run --split test` só começa
+se existir o registro de congelamento (`congelamento.json`), gravado por
+
+```bash
+tcc-rag congelar --config configs/confirmatorio.yaml
+```
+
+depois que a validação completa passa num portão de sanidade (completude,
+ausência de truncamento, taxa de consultas não executáveis, uso das
+demonstrações; nenhum critério olha os contrastes entre as condições). O
+registro guarda a configuração, as revisões do código e dos modelos, as
+identidades dos dados, do índice e dos avaliadores, o plano de análise e o
+poder do teste primário calculado com a discordância observada na validação.
+Depois dele, mudar a configuração ou a revisão do código impede a geração do
+teste.
 
 ## Acurácia de execução
 
