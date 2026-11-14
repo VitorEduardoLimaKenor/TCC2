@@ -646,9 +646,11 @@ def cmd_analise(args) -> int:
 
     from .pipeline import load_manifest as _manifesto
 
-    n_teste = sum(1 for e in _manifesto(cfg, warn=False) if e.partition == "test")
+    exemplos = _manifesto(cfg, warn=False)
+    n_teste = sum(1 for e in exemplos if e.partition == "test")
     resultado = analise.analisar(rows, estratos=estratos, custo_rows=custo_rows or None,
-                                 semente=cfg.data.seed, n_teste=n_teste, ex_distinct=ex_distinct)
+                                 semente=cfg.data.seed, n_teste=n_teste, ex_distinct=ex_distinct,
+                                 familias={e.example_id: e.family_id for e in exemplos})
     resultado["selecao"] = _selection(rows, _runs_dir(cfg, args))
     destino = cfg.work / "analise" / f"analise-{split}-{rows[0]['config_hash']}.json"
     destino.parent.mkdir(parents=True, exist_ok=True)

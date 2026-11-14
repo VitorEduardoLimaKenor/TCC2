@@ -107,23 +107,30 @@ def contrastes(a: dict, rotulo: str, legenda: str, com_holm: bool) -> str:
     papeis = (("C3-C2", "C3 $-$ C2 (primária)"), ("C4-C2", "C4 $-$ C2 (H1)"), ("C4-C3", "C4 $-$ C3 (componente)"),
               ("C2-C1", "C2 $-$ C1"), ("C1-C0", "C1 $-$ C0"))
     holm = a.get("familia_confirmatoria_holm") or {}
+    por_familia = (a.get("sensibilidade_familias") or {}).get("contrastes") or {}
     linhas = []
     for chave, nome in papeis:
         c = a["contrastes"].get(f"{chave}|pt")
         if not c:
             continue
         m = c["mcnemar"]
-        celulas = [nome, sinal(c["diferenca_pp"]), ic(c["ic95"]), f"{m['only_a']} / {m['only_b']}", pval(m["p_value"])]
+        celulas = [nome, sinal(c["diferenca_pp"]), ic(c["ic95"])]
+        if por_familia:
+            f = por_familia.get(f"{chave}|pt")
+            celulas.append(ic(f["ic95_por_familia"]) if f else "---")
+        celulas += [f"{m['only_a']} / {m['only_b']}", pval(m["p_value"])]
         if com_holm:
             h = holm.get(f"{chave}|pt")
             celulas.append(pval(h["p_holm"]) if h else "---")
         linhas.append(" & ".join(celulas) + " \\\\")
     cabecalho = ("\\textbf{Contraste} & " + cab("Diferença", "(pp)") + " & \\textbf{IC de 95\\%} & "
+                 + (cab("IC de 95\\%", "(por família)") + " & " if por_familia else "")
                  + cab("Discor-", "dantes") + " & \\textbf{Valor-p}" + (" & " + cab("Valor-p", "(Holm)") if com_holm else ""))
     return tabela(
-        "l|c|c|c|c" + ("|c" if com_holm else ""), cabecalho, linhas, legenda, rotulo,
-        "Discordantes: perguntas em que só a primeira condição acerta / só a segunda acerta. Valor-p: teste exato de "
-        "McNemar, bilateral.",
+        "l|c|c|c|c" + ("|c" if por_familia else "") + ("|c" if com_holm else ""), cabecalho, linhas, legenda, rotulo,
+        "IC de 95\\%: reamostragem pareada estratificada por banco" + ("; por família: a unidade reamostrada é a "
+        "família canônica (análise de sensibilidade)" if por_familia else "") + ". Discordantes: perguntas em que só a "
+        "primeira condição acerta / só a segunda acerta. Valor-p: teste exato de McNemar, bilateral.",
     )
 
 

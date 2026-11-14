@@ -129,3 +129,27 @@ def test_rubrica_de_erros(pred, ref, erro, esperado):
              "exec_ok": erro is None, "exec_error": erro, "generated_sql": pred, "gold_sql": ref}
     assert analise.classificar_erro(linha) == esperado
     assert analise.classificar_erro({**linha, "ex_correct": True}) is None
+
+
+def test_ic_por_familia_e_mais_largo_quando_os_acertos_se_agrupam():
+    """Com acertos idênticos dentro de cada família, reamostrar famílias dá intervalo
+    mais largo que reamostrar perguntas; com famílias de uma pergunta, os dois coincidem."""
+    import numpy as np
+
+    rng = random.Random(9)
+    a, b, fam, banco = [], [], [], []
+    for f in range(60):
+        da, db_ = rng.random() < 0.7, rng.random() < 0.6
+        for _ in range(4):  # quatro perguntas por família, todas com o mesmo resultado
+            a.append(da); b.append(db_); fam.append(f"f{f}"); banco.append(f"db{f % 3}")
+    por_familia = analise.ic_por_familia(a, b, fam, banco, np.random.default_rng(1), 4000)
+    por_pergunta = analise.ic_por_familia(a, b, [str(i) for i in range(len(a))], banco, np.random.default_rng(1), 4000)
+    assert (por_familia[1] - por_familia[0]) > 1.5 * (por_pergunta[1] - por_pergunta[0])
+    ponto = 100 * (sum(a) - sum(b)) / len(a)
+    assert por_familia[0] <= ponto <= por_familia[1]
+
+    linhas = _linhas(n=60)
+    r = analise.analisar(linhas, semente=2, familias={f"ex{i}": f"fam{i // 3}" for i in range(60)})
+    s = r["sensibilidade_familias"]
+    assert s["n_familias"] == 20 and s["maior_familia"] == 3
+    assert set(s["contrastes"]) >= {"C3-C2|pt", "C4-C2|pt", "C4-C3|pt"}

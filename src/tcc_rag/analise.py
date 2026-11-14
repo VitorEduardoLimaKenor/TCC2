@@ -90,6 +90,29 @@ def _ic(amostras: np.ndarray, nivel: float = 0.95) -> tuple[float, float]:
     return (float(np.quantile(amostras, alfa)), float(np.quantile(amostras, 1 - alfa)))
 
 
+def ic_por_familia(a: Sequence[bool], b: Sequence[bool], familias: Sequence[str], bancos: Sequence[str],
+                   rng: np.random.Generator, reamostras: int = REAMOSTRAS) -> tuple[float, float]:
+    """IC de 95% da diferença de acurácia reamostrando famílias inteiras dentro de cada banco.
+
+    Perguntas da mesma família canônica têm a mesma consulta de referência, a
+    menos de literais, e seus acertos não são independentes. Aqui a unidade
+    sorteada é a família, com todas as suas perguntas, e não a pergunta.
+    """
+    dif = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)
+    grupos: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for i, (fam, banco) in enumerate(zip(familias, bancos)):
+        grupos[banco][fam].append(i)
+    soma = np.zeros(reamostras)
+    total = np.zeros(reamostras)
+    for por_familia in grupos.values():
+        d = np.array([dif[idx].sum() for idx in por_familia.values()])
+        n = np.array([len(idx) for idx in por_familia.values()], dtype=float)
+        sorteio = rng.integers(0, len(d), size=(reamostras, len(d)))
+        soma += d[sorteio].sum(axis=1)
+        total += n[sorteio].sum(axis=1)
+    return _ic(100 * soma / total)
+
+
 def holm(pvalores: dict[str, float], alfa: float = 0.05) -> dict[str, dict[str, Any]]:
     """Correção de Holm: valor-p ajustado e decisão a `alfa`, por hipótese."""
     ordenados = sorted(pvalores.items(), key=lambda kv: kv[1])
@@ -392,12 +415,15 @@ def analisar(
     semente: int = 20260904,
     n_teste: int = 471,
     ex_distinct: dict[tuple[str, str, str], bool | None] | None = None,
+    familias: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Todas as estimativas reportadas, a partir das linhas de um split.
 
     `estratos` é o conteúdo de `estratos_literais.json`; `custo_rows`, as
     medições de `tcc-rag custo`; `ex_distinct`, o veredito da variante do
-    avaliador que preserva DISTINCT, por (condição, idioma, exemplo).
+    avaliador que preserva DISTINCT, por (condição, idioma, exemplo);
+    `familias`, a família canônica de cada exemplo (do manifesto), para a
+    análise de sensibilidade em que a unidade reamostrada é a família.
     """
     dados = _Dados(rows)
     rng = np.random.default_rng(semente)
@@ -433,6 +459,23 @@ def analisar(
     saida["contrastes"] = contrastes
     familia = {k: contrastes[k]["mcnemar"]["p_value"] for k in ("C3-C2|pt", "C4-C2|pt") if k in contrastes}
     saida["familia_confirmatoria_holm"] = holm(familia) if len(familia) == 2 else None
+
+    # ---- 2b. sensibilidade: reamostragem por família canônica (unidade = família)
+    if familias:
+        fam = [familias.get(i, i) for i in dados.ids]
+        tamanhos = Counter(fam)
+        sens: dict[str, Any] = {"n_familias": len(tamanhos), "maior_familia": max(tamanhos.values()),
+                                "familias_com_mais_de_uma_pergunta": sum(1 for v in tamanhos.values() if v > 1),
+                                "contrastes": {}}
+        for tratada, referencia in (("C3", "C2"), ("C4", "C2"), ("C4", "C3")):
+            for lang in dados.idiomas:
+                if dados.tem(tratada, lang) and dados.tem(referencia, lang):
+                    lo, hi = ic_por_familia(dados.vetor(tratada, lang), dados.vetor(referencia, lang), fam,
+                                            dados.banco, rng)
+                    sens["contrastes"][f"{tratada}-{referencia}|{lang}"] = {
+                        "diferenca_pp": contrastes[f"{tratada}-{referencia}|{lang}"]["diferenca_pp"],
+                        "ic95_por_familia": [lo, hi], "ic_exclui_zero": lo > 0 or hi < 0}
+        saida["sensibilidade_familias"] = sens
 
     # ---- 3. idiomas: EN − PT por condição e diferenças em diferenças (H2)
     if set(dados.idiomas) == {"pt", "en"}:
