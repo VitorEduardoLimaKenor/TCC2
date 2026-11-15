@@ -199,6 +199,8 @@ def teste_idiomas(a: dict) -> str:
         if not (pt and en and d):
             continue
         linhas.append(f"{NOME[c]} & {pct(en['ex'])} & {pct(pt['ex'])} & {sinal(d['diferenca_pp'])} & {ic(d['ic95'])} \\\\")
+    if not linhas:
+        return ""  # análise parcial, sem o inglês
     return tabela(
         "l|c|c|c|c",
         "\\textbf{Condição} & \\textbf{Inglês (\\%)} & \\textbf{Português (\\%)} & \\textbf{EN $-$ PT (pp)} & "

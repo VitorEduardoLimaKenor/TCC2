@@ -153,3 +153,18 @@ def test_ic_por_familia_e_mais_largo_quando_os_acertos_se_agrupam():
     s = r["sensibilidade_familias"]
     assert s["n_familias"] == 20 and s["maior_familia"] == 3
     assert set(s["contrastes"]) >= {"C3-C2|pt", "C4-C2|pt", "C4-C3|pt"}
+
+
+@pytest.mark.parametrize("pred,ref,esperado", [
+    ("SELECT a FROM t WHERE b = 'alimentos'", 'SELECT a FROM t WHERE b  =  "food"', "literal"),
+    ("SELECT a FROM t WHERE b LIKE '%gato%'", 'SELECT a FROM t WHERE b LIKE "%cat%"', "literal"),
+    ("SELECT a FROM t WHERE b IN ('França', 'Itália')", 'SELECT a FROM t WHERE b IN ("France", "Italy")', "literal"),
+    ("SELECT a FROM t WHERE b BETWEEN 'a' AND 'c'", 'SELECT a FROM t WHERE b BETWEEN "a" AND "d"', "literal"),
+    ("SELECT a FROM t WHERE c = 'food'", 'SELECT a FROM t WHERE b = "food"', "filtro"),
+    ('SELECT "a" FROM t WHERE b = 1', "SELECT a FROM t WHERE b = 2", "literal"),
+])
+def test_literal_entre_aspas_duplas_e_valor_e_nao_coluna(pred, ref, esperado):
+    """A convenção do Spider (literais entre aspas duplas) não pode virar "coluna diferente"."""
+    linha = {"ex_correct": False, "ex_status": "difere", "exec_ok": True, "exec_error": None,
+             "generated_sql": pred, "gold_sql": ref}
+    assert analise.classificar_erro(linha) == esperado

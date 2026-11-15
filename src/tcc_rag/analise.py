@@ -24,6 +24,7 @@ congelamento de 11/11/2026):
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter, defaultdict
 from dataclasses import asdict
 from typing import Any, Iterable, Sequence
@@ -183,12 +184,41 @@ def diferenca_minima_detectavel(n: int, taxa_discordancia: float, alfa: float = 
 # ----------------------------------------------------------- rubrica de erros
 
 
+_VALOR_APOS_OPERADOR = re.compile(r'(=|<>|!=|<=|>=|<|>|\blike\b|\bbetween\b)(\s*)"([^"]*)"', re.I)
+_VALOR_APOS_BETWEEN = re.compile(r"(\bbetween\s+'[^']*'\s+and)(\s*)\"([^\"]*)\"", re.I)
+_LISTA_DE_IN = re.compile(r"\bin\s*\(([^()]*)\)", re.I)
+_ENTRE_ASPAS_DUPLAS = re.compile(r'"([^"]*)"')
+
+
+def _como_texto(conteudo: str) -> str:
+    return "'" + conteudo.replace("'", "''") + "'"
+
+
+def _literais_em_aspas_duplas(sql: str) -> str:
+    """Troca por aspas simples os valores escritos entre aspas duplas.
+
+    As consultas de referência do Spider escrevem literais de texto entre aspas
+    duplas (`WHERE tipo = "food"`), e o SQLite os aceita como texto quando não
+    há coluna com esse nome. O analisador sintático, porém, lê aspas duplas
+    como identificador, e a rubrica classificaria um literal diferente como
+    "coluna diferente". A troca só é feita onde a posição pede um valor: depois
+    de um operador de comparação, de LIKE ou de BETWEEN (e do AND que o
+    completa) e dentro de uma lista de IN.
+    """
+    sql = _VALOR_APOS_OPERADOR.sub(lambda m: m.group(1) + m.group(2) + _como_texto(m.group(3)), sql)
+    sql = _VALOR_APOS_BETWEEN.sub(lambda m: m.group(1) + m.group(2) + _como_texto(m.group(3)), sql)
+    return _LISTA_DE_IN.sub(
+        lambda m: m.group(0).replace(
+            m.group(1), _ENTRE_ASPAS_DUPLAS.sub(lambda v: _como_texto(v.group(1)), m.group(1))),
+        sql)
+
+
 def _estrutura(sql: str) -> dict[str, Any] | None:
     import sqlglot
     from sqlglot import exp
 
     try:
-        arvore = sqlglot.parse_one(sql, read="sqlite")
+        arvore = sqlglot.parse_one(_literais_em_aspas_duplas(sql), read="sqlite")
     except Exception:  # noqa: BLE001
         return None
     if arvore is None:
