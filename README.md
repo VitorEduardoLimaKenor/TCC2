@@ -250,6 +250,27 @@ poder do teste primário calculado com a discordância observada na validação.
 Depois dele, mudar a configuração ou a revisão do código impede a geração do
 teste.
 
+### Dos registros às tabelas e figuras da monografia
+
+A rodada de 14–15/11/2026 foi gerada com a revisão `ff4abc8` (a do registro de
+congelamento). O notebook `notebooks/confirmatorio.ipynb` roda `rodada.sh`
+(célula 1) e empacota os resultados (célula 2). A partir do pacote extraído:
+
+```bash
+# análise completa do teste (mesma função de `tcc-rag analise --sensibilidade-distinct`)
+python scripts/analise_local.py <pacote>/artifacts data/spider test analise-test.json
+# tabelas do Capítulo 5 e figuras de resultados
+python scripts/tabelas_cap5.py <pacote>/artifacts/analise/analise-val-<hash>.json analise-test.json <monografia>/Textual/tabelas
+python scripts/figuras/resultados.py analise-test.json <monografia>/Images
+```
+
+`analise_local.py` confere, antes de calcular, que o log tem uma única execução,
+configuração e revisão de código, linhas únicas, condições pareadas e que
+corresponde ao registro de congelamento. `pos_rodada.py` faz o mesmo percurso
+quando a análise do teste já vem no pacote. A análise calculada com a revisão
+congelada e com a revisão atual coincide em tudo, exceto na tabela de erros: a
+rubrica passou a tratar como valores os literais entre aspas duplas (`2abc7ff`).
+
 ## Acurácia de execução
 
 A EX é a do avaliador oficial do Spider, o `exec_eval.py` do
