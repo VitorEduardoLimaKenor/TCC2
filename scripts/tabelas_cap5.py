@@ -23,6 +23,13 @@ NOME = {
     "C3": "C3 -- Pergunta delexicalizada",
     "C4": "C4 -- Duas etapas",
 }
+NOME_CURTO = {
+    "C0": "C0 -- Sem demonstr.",
+    "C1": "C1 -- Fixos",
+    "C2": "C2 -- Similaridade",
+    "C3": "C3 -- Delexicalizada",
+    "C4": "C4 -- Duas etapas",
+}
 FONTE = "\\vspace{0.1\\baselineskip}\n\\newline \\footnotesize \\textbf{Fonte: Autoria própria (2026).}"
 
 
@@ -65,11 +72,13 @@ def inteiro(n: int) -> str:
     return f"{n:,}".replace(",", ".")
 
 
-def tabela(colunas: str, cabecalho: str, linhas: list[str], legenda: str, rotulo: str, nota: str = "") -> str:
+def tabela(colunas: str, cabecalho: str, linhas: list[str], legenda: str, rotulo: str, nota: str = "",
+           ajuste: str = "") -> str:
+    """`ajuste`: comandos locais ao ambiente (por exemplo, o espaço entre colunas de uma tabela larga)."""
     corpo = "\n\\hline\n".join(linhas)
     return (
         "\\begin{table}[H]\n\\centering\n"
-        f"\\caption{{{legenda}}}\n\\footnotesize\n"
+        f"\\caption{{{legenda}}}\n\\footnotesize\n{ajuste}"
         f"\\begin{{tabular}}{{{colunas}}}\n\\hline\n{cabecalho} \\\\\n\\hline\n{corpo}\n\\hline\n\\end{{tabular}}\n"
         + (f"\\par\\vspace{{0.3\\baselineskip}}\n\\parbox{{0.94\\linewidth}}{{\\footnotesize\\raggedright {nota}}}\n"
            if nota else "")
@@ -225,8 +234,10 @@ def teste_custo(a: dict) -> str:
         l = lat.get(f"{c}|pt")
         ganho = "---" if c == "C0" or cu["ganho_pp_por_100_tokens"] is None else sinal(cu["ganho_pp_por_100_tokens"], 2)
         latencia = (f"{num(l['total_ms_p50'] / 1000, 2)} & {num(l['total_ms_p95'] / 1000, 2)} & " if tem_lat else "")
+        # com as duas colunas de latência, a tabela só cabe na página com o nome abreviado da condição
         linhas.append(
-            f"{NOME[c]} & {pct(cel['ex'])} & {cu['chamadas_ao_modelo']} & {num(cel['prompt_tokens_total_medio'], 0)} & "
+            f"{NOME_CURTO[c] if tem_lat else NOME[c]} & {pct(cel['ex'])} & {cu['chamadas_ao_modelo']} & "
+            f"{num(cel['prompt_tokens_total_medio'], 0)} & "
             f"{num(cel['completion_tokens_total_medio'], 0)} & {num(cel['latencia_lote_por_item_ms_media'] / 1000, 2)} & "
             f"{latencia}{ganho} \\\\"
         )
@@ -247,6 +258,7 @@ def teste_custo(a: dict) -> str:
         "Acurácia, custo computacional e ganho marginal por condição, em português brasileiro.",
         "tab:custo",
         nota,
+        ajuste="\\setlength{\\tabcolsep}{3.5pt}\n" if tem_lat else "",
     )
 
 

@@ -271,6 +271,15 @@ quando a análise do teste já vem no pacote. A análise calculada com a revisã
 congelada e com a revisão atual coincide em tudo, exceto na tabela de erros: a
 rubrica passou a tratar como valores os literais entre aspas duplas (`2abc7ff`).
 
+A latência com uma pergunta por vez (`tcc-rag custo`) foi medida em 15/11/2026
+numa sessão separada do Colab, sem o Drive da rodada, por
+`scripts/colab/latencia_avulsa.sh`: o roteiro fixa a revisão `ff4abc8`, baixa e
+confere os dados, reconstrói a partição e o índice e só mede se o manifesto, os
+estratos e a identidade do índice forem os do teste (`8eeffab149bcfc62`). O
+arquivo `custo-test-<hash>-<amostra>.jsonl` resultante entra em
+`<pacote>/artifacts/custo/` antes de `analise_local.py`; a tabela e a figura de
+custo ganham então as colunas e o painel de latência.
+
 ## Acurácia de execução
 
 A EX é a do avaliador oficial do Spider, o `exec_eval.py` do

@@ -154,6 +154,8 @@ def f07_custo(a: dict, saida: Path, sufixo: str) -> None:
     # rótulos diretos, afastando os que colidem
     usados: list[tuple[float, float]] = []
     span_x = max(xs) - min(xs) or 1
+    largura_rotulo = (0.30 if tem_lat else 0.17) * span_x  # largura aproximada do texto, em unidades do eixo
+    a_esquerda = False
     # do maior valor para o menor, para que a ordem vertical dos rótulos siga a dos pontos
     for c in sorted((c for c in CONDS if f"{c}|pt" in a["celulas"]), key=lambda c: -a["celulas"][f"{c}|pt"]["ex"]):
         cel = a["celulas"].get(f"{c}|pt")
@@ -163,10 +165,18 @@ def f07_custo(a: dict, saida: Path, sufixo: str) -> None:
         while any(abs(x - ux) < 0.22 * span_x and abs(yy - uy) < 1.3 for ux, uy in usados):
             yy -= 1.3
         usados.append((x, yy))
+        # se o rótulo, à direita, atravessaria o intervalo de outra condição e à esquerda não,
+        # ele vai para a esquerda
+        def atravessa(x0: float, x1: float) -> bool:
+            return any(x0 < xo < x1 and lo - 0.6 <= yy <= hi + 0.6 for xo, (lo, _, hi) in zip(xs, ys) if xo != x)
+
+        if atravessa(x, x + dx + largura_rotulo) and not atravessa(x - dx - largura_rotulo, x):
+            dx, ha = -dx, "right"
+            a_esquerda = True
         ax.text(x + dx, yy, f"{c}  {estilo.pct(y)}%", ha=ha, va="center", fontsize=8, color=estilo.TINTA)
     ax.set_xlabel("Tokens de entrada por pergunta (média)")
     ax.set_ylabel("Acurácia de execução (%)")
-    ax.set_xlim(min(xs) - 0.12 * span_x, max(xs) + 0.34 * span_x)
+    ax.set_xlim(min(xs) - (0.42 if a_esquerda else 0.12) * span_x, max(xs) + 0.34 * span_x)
     lo_all, hi_all = min(v[0] for v in ys), max(v[2] for v in ys)
     ax.set_ylim(math.floor(lo_all / 5) * 5 - 1, math.ceil(hi_all / 5) * 5 + 1)
     ax.yaxis.set_major_locator(plt.MultipleLocator(5))
