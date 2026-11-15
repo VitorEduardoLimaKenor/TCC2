@@ -154,10 +154,9 @@ def f07_custo(a: dict, saida: Path, sufixo: str) -> None:
     # rótulos diretos, afastando os que colidem
     usados: list[tuple[float, float]] = []
     span_x = max(xs) - min(xs) or 1
-    for c in CONDS:
+    # do maior valor para o menor, para que a ordem vertical dos rótulos siga a dos pontos
+    for c in sorted((c for c in CONDS if f"{c}|pt" in a["celulas"]), key=lambda c: -a["celulas"][f"{c}|pt"]["ex"]):
         cel = a["celulas"].get(f"{c}|pt")
-        if not cel:
-            continue
         x, y = cel["prompt_tokens_total_medio"] + desvio[c], 100 * cel["ex"]
         dx, ha = 0.035 * span_x, "left"
         yy = y
@@ -170,9 +169,11 @@ def f07_custo(a: dict, saida: Path, sufixo: str) -> None:
     ax.set_xlim(min(xs) - 0.12 * span_x, max(xs) + 0.34 * span_x)
     lo_all, hi_all = min(v[0] for v in ys), max(v[2] for v in ys)
     ax.set_ylim(math.floor(lo_all / 5) * 5 - 1, math.ceil(hi_all / 5) * 5 + 1)
+    ax.yaxis.set_major_locator(plt.MultipleLocator(5))
     ax.yaxis.grid(True, zorder=0)
     ax.set_axisbelow(True)
-    ax.set_title("(a) Acurácia e tokens de entrada", loc="left", color=estilo.TINTA_2)
+    if tem_lat:
+        ax.set_title("(a) Acurácia e tokens de entrada", loc="left", color=estilo.TINTA_2)
 
     if tem_lat:
         bx = eixos[1]

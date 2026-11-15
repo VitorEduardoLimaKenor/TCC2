@@ -213,7 +213,9 @@ def teste_idiomas(a: dict) -> str:
 
 
 def teste_custo(a: dict) -> str:
+    """Custo por condição. As colunas de latência só existem quando a passagem dedicada foi medida."""
     lat = (a.get("custo") or {}).get("latencia") or {}
+    tem_lat = all(lat.get(f"{c}|pt") for c in CONDS)
     linhas = []
     for c in CONDS:
         cel = a["celulas"].get(f"{c}|pt")
@@ -222,21 +224,25 @@ def teste_custo(a: dict) -> str:
             continue
         l = lat.get(f"{c}|pt")
         ganho = "---" if c == "C0" or cu["ganho_pp_por_100_tokens"] is None else sinal(cu["ganho_pp_por_100_tokens"], 2)
+        latencia = (f"{num(l['total_ms_p50'] / 1000, 2)} & {num(l['total_ms_p95'] / 1000, 2)} & " if tem_lat else "")
         linhas.append(
-            f"{NOME[c]} & {pct(cel['ex'])} & {num(cel['prompt_tokens_total_medio'], 0)} & "
-            f"{num(cel['completion_tokens_total_medio'], 0)} & "
-            f"{num(l['total_ms_p50'] / 1000, 2) if l else '---'} & {num(l['total_ms_p95'] / 1000, 2) if l else '---'} & "
-            f"{ganho} \\\\"
+            f"{NOME[c]} & {pct(cel['ex'])} & {cu['chamadas_ao_modelo']} & {num(cel['prompt_tokens_total_medio'], 0)} & "
+            f"{num(cel['completion_tokens_total_medio'], 0)} & {num(cel['latencia_lote_por_item_ms_media'] / 1000, 2)} & "
+            f"{latencia}{ganho} \\\\"
         )
     prot = (a.get("custo") or {}).get("latencia_protocolo") or {}
     nota = ("Tokens: média por pergunta no conjunto de teste em português; em C4, somadas as duas chamadas ao modelo. "
+            "Tempo em lote: tempo de geração do lote de quatro perguntas dividido por quatro, na rodada principal; em "
+            "C4, não inclui a consulta preliminar. "
             + (f"Latência: passagem dedicada com uma pergunta por vez ({prot.get('n_medicoes')} medições; "
-               f"{prot.get('gpu')}). " if prot else "")
+               f"{prot.get('gpu')}). " if tem_lat and prot else "")
             + "Ganho marginal: pontos percentuais de acurácia por cem tokens de entrada adicionais em relação a C0.")
     return tabela(
-        "l|c|c|c|c|c|c",
-        "\\textbf{Condição} & " + cab("EX", "(\\%)") + " & " + cab("Tokens", "entrada") + " & " + cab("Tokens", "saída")
-        + " & " + cab("Lat. p50", "(s)") + " & " + cab("Lat. p95", "(s)") + " & " + cab("Ganho", "marg."),
+        "l|c|c|c|c|c|" + ("c|c|" if tem_lat else "") + "c",
+        "\\textbf{Condição} & " + cab("EX", "(\\%)") + " & " + cab("Cha-", "madas") + " & " + cab("Tokens", "entrada")
+        + " & " + cab("Tokens", "saída") + " & " + cab("Tempo em", "lote (s)")
+        + ((" & " + cab("Lat. p50", "(s)") + " & " + cab("Lat. p95", "(s)")) if tem_lat else "")
+        + " & " + cab("Ganho", "marg."),
         linhas,
         "Acurácia, custo computacional e ganho marginal por condição, em português brasileiro.",
         "tab:custo",
