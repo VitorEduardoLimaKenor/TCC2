@@ -1,0 +1,26 @@
+{
+ "digest": "8eeffab149bcfc62",
+ "n_demos": 2242,
+ "pool_sha256": "1230f9145afd97a4365a3809033039e3bda9156182bcbe23291ceede865c8878",
+ "proveniencia": {
+  "batch_size": 128,
+  "bibliotecas": {
+   "sentence-transformers": "5.7.0",
+   "torch": "2.14.1+cu130",
+   "transformers": "5.22.1"
+  },
+  "device": "cuda",
+  "formato": 2,
+  "modelo": "intfloat/multilingual-e5-base",
+  "normalize": true,
+  "revisao": "d128750597153bb5987e10b1c3493a34e5a4502a"
+ },
+ "vetores_sha256": "d3716c0edb1f9ac50ed5625a12b4ac37a3dbeabd18891b39baebd7770b3a48fd",
+ "vetorizador": {
+  "modelo": "intfloat/multilingual-e5-base",
+  "normalize": true,
+  "passage_prefix": "passage: ",
+  "query_prefix": "query: ",
+  "revisao": "d128750597153bb5987e10b1c3493a34e5a4502a"
+ }
+}

@@ -1,0 +1,802 @@
+[
+  {
+    "db_id": "college_2",
+    "n_questions": 170,
+    "n_families": 82
+  },
+  {
+    "db_id": "college_1",
+    "n_questions": 164,
+    "n_families": 81
+  },
+  {
+    "db_id": "world_1",
+    "n_questions": 120,
+    "n_families": 63
+  },
+  {
+    "db_id": "hr_1",
+    "n_questions": 124,
+    "n_families": 59
+  },
+  {
+    "db_id": "store_1",
+    "n_questions": 112,
+    "n_families": 56
+  },
+  {
+    "db_id": "soccer_2",
+    "n_questions": 106,
+    "n_families": 53
+  },
+  {
+    "db_id": "bike_1",
+    "n_questions": 104,
+    "n_families": 52
+  },
+  {
+    "db_id": "music_1",
+    "n_questions": 100,
+    "n_families": 50
+  },
+  {
+    "db_id": "hospital_1",
+    "n_questions": 100,
+    "n_families": 50
+  },
+  {
+    "db_id": "dorm_1",
+    "n_questions": 100,
+    "n_families": 50
+  },
+  {
+    "db_id": "allergy_1",
+    "n_questions": 98,
+    "n_families": 49
+  },
+  {
+    "db_id": "movie_1",
+    "n_questions": 98,
+    "n_families": 49
+  },
+  {
+    "db_id": "flight_1",
+    "n_questions": 96,
+    "n_families": 48
+  },
+  {
+    "db_id": "music_2",
+    "n_questions": 100,
+    "n_families": 47
+  },
+  {
+    "db_id": "driving_school",
+    "n_questions": 93,
+    "n_families": 47
+  },
+  {
+    "db_id": "car_1",
+    "n_questions": 92,
+    "n_families": 47
+  },
+  {
+    "db_id": "cre_Doc_Tracking_DB",
+    "n_questions": 90,
+    "n_families": 45
+  },
+  {
+    "db_id": "department_store",
+    "n_questions": 88,
+    "n_families": 44
+  },
+  {
+    "db_id": "customers_and_addresses",
+    "n_questions": 88,
+    "n_families": 44
+  },
+  {
+    "db_id": "activity_1",
+    "n_questions": 88,
+    "n_families": 44
+  },
+  {
+    "db_id": "network_2",
+    "n_questions": 86,
+    "n_families": 43
+  },
+  {
+    "db_id": "products_gen_characteristics",
+    "n_questions": 86,
+    "n_families": 43
+  },
+  {
+    "db_id": "game_1",
+    "n_questions": 86,
+    "n_families": 43
+  },
+  {
+    "db_id": "chinook_1",
+    "n_questions": 84,
+    "n_families": 42
+  },
+  {
+    "db_id": "cre_Theme_park",
+    "n_questions": 84,
+    "n_families": 42
+  },
+  {
+    "db_id": "cre_Docs_and_Epenses",
+    "n_questions": 84,
+    "n_families": 42
+  },
+  {
+    "db_id": "cre_Doc_Template_Mgt",
+    "n_questions": 84,
+    "n_families": 42
+  },
+  {
+    "db_id": "customers_and_invoices",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "sakila_1",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "baseball_1",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "e_learning",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "cre_Drama_Workshop_Groups",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "wine_1",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "flight_4",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "dog_kennels",
+    "n_questions": 82,
+    "n_families": 41
+  },
+  {
+    "db_id": "customers_card_transactions",
+    "n_questions": 80,
+    "n_families": 40
+  },
+  {
+    "db_id": "apartment_rentals",
+    "n_questions": 80,
+    "n_families": 40
+  },
+  {
+    "db_id": "formula_1",
+    "n_questions": 80,
+    "n_families": 40
+  },
+  {
+    "db_id": "loan_1",
+    "n_questions": 80,
+    "n_families": 40
+  },
+  {
+    "db_id": "flight_2",
+    "n_questions": 80,
+    "n_families": 40
+  },
+  {
+    "db_id": "tracking_share_transactions",
+    "n_questions": 41,
+    "n_families": 40
+  },
+  {
+    "db_id": "behavior_monitoring",
+    "n_questions": 40,
+    "n_families": 40
+  },
+  {
+    "db_id": "manufactory_1",
+    "n_questions": 80,
+    "n_families": 39
+  },
+  {
+    "db_id": "tracking_grants_for_research",
+    "n_questions": 78,
+    "n_families": 39
+  },
+  {
+    "db_id": "student_transcripts_tracking",
+    "n_questions": 78,
+    "n_families": 39
+  },
+  {
+    "db_id": "college_3",
+    "n_questions": 74,
+    "n_families": 37
+  },
+  {
+    "db_id": "inn_1",
+    "n_questions": 74,
+    "n_families": 35
+  },
+  {
+    "db_id": "voter_2",
+    "n_questions": 72,
+    "n_families": 35
+  },
+  {
+    "db_id": "club_1",
+    "n_questions": 70,
+    "n_families": 35
+  },
+  {
+    "db_id": "election",
+    "n_questions": 68,
+    "n_families": 34
+  },
+  {
+    "db_id": "icfp_1",
+    "n_questions": 66,
+    "n_families": 33
+  },
+  {
+    "db_id": "cre_Doc_Control_Systems",
+    "n_questions": 33,
+    "n_families": 33
+  },
+  {
+    "db_id": "csu_1",
+    "n_questions": 70,
+    "n_families": 32
+  },
+  {
+    "db_id": "student_1",
+    "n_questions": 68,
+    "n_families": 32
+  },
+  {
+    "db_id": "wta_1",
+    "n_questions": 62,
+    "n_families": 31
+  },
+  {
+    "db_id": "tvshow",
+    "n_questions": 62,
+    "n_families": 31
+  },
+  {
+    "db_id": "assets_maintenance",
+    "n_questions": 31,
+    "n_families": 31
+  },
+  {
+    "db_id": "swimming",
+    "n_questions": 30,
+    "n_families": 30
+  },
+  {
+    "db_id": "music_4",
+    "n_questions": 60,
+    "n_families": 29
+  },
+  {
+    "db_id": "tracking_orders",
+    "n_questions": 60,
+    "n_families": 29
+  },
+  {
+    "db_id": "match_season",
+    "n_questions": 58,
+    "n_families": 29
+  },
+  {
+    "db_id": "network_1",
+    "n_questions": 56,
+    "n_families": 28
+  },
+  {
+    "db_id": "epinions_1",
+    "n_questions": 30,
+    "n_families": 28
+  },
+  {
+    "db_id": "student_assessment",
+    "n_questions": 53,
+    "n_families": 27
+  },
+  {
+    "db_id": "phone_1",
+    "n_questions": 29,
+    "n_families": 27
+  },
+  {
+    "db_id": "sports_competition",
+    "n_questions": 52,
+    "n_families": 26
+  },
+  {
+    "db_id": "twitter_1",
+    "n_questions": 27,
+    "n_families": 26
+  },
+  {
+    "db_id": "small_bank_1",
+    "n_questions": 50,
+    "n_families": 25
+  },
+  {
+    "db_id": "concert_singer",
+    "n_questions": 45,
+    "n_families": 25
+  },
+  {
+    "db_id": "insurance_policies",
+    "n_questions": 48,
+    "n_families": 24
+  },
+  {
+    "db_id": "film_rank",
+    "n_questions": 48,
+    "n_families": 24
+  },
+  {
+    "db_id": "tracking_software_problems",
+    "n_questions": 48,
+    "n_families": 24
+  },
+  {
+    "db_id": "ship_1",
+    "n_questions": 48,
+    "n_families": 24
+  },
+  {
+    "db_id": "scientist_1",
+    "n_questions": 48,
+    "n_families": 24
+  },
+  {
+    "db_id": "school_finance",
+    "n_questions": 26,
+    "n_families": 24
+  },
+  {
+    "db_id": "body_builder",
+    "n_questions": 24,
+    "n_families": 24
+  },
+  {
+    "db_id": "university_basketball",
+    "n_questions": 46,
+    "n_families": 23
+  },
+  {
+    "db_id": "gas_company",
+    "n_questions": 46,
+    "n_families": 23
+  },
+  {
+    "db_id": "aircraft",
+    "n_questions": 46,
+    "n_families": 23
+  },
+  {
+    "db_id": "customer_complaints",
+    "n_questions": 46,
+    "n_families": 23
+  },
+  {
+    "db_id": "train_station",
+    "n_questions": 23,
+    "n_families": 23
+  },
+  {
+    "db_id": "medicine_enzyme_interaction",
+    "n_questions": 44,
+    "n_families": 22
+  },
+  {
+    "db_id": "party_people",
+    "n_questions": 44,
+    "n_families": 22
+  },
+  {
+    "db_id": "storm_record",
+    "n_questions": 44,
+    "n_families": 22
+  },
+  {
+    "db_id": "store_product",
+    "n_questions": 44,
+    "n_families": 22
+  },
+  {
+    "db_id": "shop_membership",
+    "n_questions": 44,
+    "n_families": 22
+  },
+  {
+    "db_id": "cinema",
+    "n_questions": 30,
+    "n_families": 22
+  },
+  {
+    "db_id": "restaurant_1",
+    "n_questions": 22,
+    "n_families": 22
+  },
+  {
+    "db_id": "entertainment_awards",
+    "n_questions": 22,
+    "n_families": 22
+  },
+  {
+    "db_id": "document_management",
+    "n_questions": 44,
+    "n_families": 21
+  },
+  {
+    "db_id": "product_catalog",
+    "n_questions": 42,
+    "n_families": 21
+  },
+  {
+    "db_id": "race_track",
+    "n_questions": 42,
+    "n_families": 21
+  },
+  {
+    "db_id": "insurance_fnol",
+    "n_questions": 42,
+    "n_families": 21
+  },
+  {
+    "db_id": "pets_1",
+    "n_questions": 42,
+    "n_families": 21
+  },
+  {
+    "db_id": "perpetrator",
+    "n_questions": 21,
+    "n_families": 21
+  },
+  {
+    "db_id": "railway",
+    "n_questions": 21,
+    "n_families": 21
+  },
+  {
+    "db_id": "farm",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "musical",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "climbing",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "insurance_and_eClaims",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "theme_gallery",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "gymnast",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "wrestler",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "entrepreneur",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "candidate_poll",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "county_public_safety",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "program_share",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "company_office",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "device",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "city_record",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "e_government",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "poker_player",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "orchestra",
+    "n_questions": 40,
+    "n_families": 20
+  },
+  {
+    "db_id": "book_2",
+    "n_questions": 21,
+    "n_families": 20
+  },
+  {
+    "db_id": "election_representative",
+    "n_questions": 20,
+    "n_families": 20
+  },
+  {
+    "db_id": "wedding",
+    "n_questions": 20,
+    "n_families": 20
+  },
+  {
+    "db_id": "protein_institute",
+    "n_questions": 20,
+    "n_families": 20
+  },
+  {
+    "db_id": "school_player",
+    "n_questions": 40,
+    "n_families": 19
+  },
+  {
+    "db_id": "culture_company",
+    "n_questions": 38,
+    "n_families": 19
+  },
+  {
+    "db_id": "employee_hire_evaluation",
+    "n_questions": 38,
+    "n_families": 19
+  },
+  {
+    "db_id": "flight_company",
+    "n_questions": 19,
+    "n_families": 19
+  },
+  {
+    "db_id": "game_injury",
+    "n_questions": 19,
+    "n_families": 18
+  },
+  {
+    "db_id": "coffee_shop",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "browser_web",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "products_for_hire",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "news_report",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "school_bus",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "museum_visit",
+    "n_questions": 18,
+    "n_families": 18
+  },
+  {
+    "db_id": "journal_committee",
+    "n_questions": 18,
+    "n_families": 17
+  },
+  {
+    "db_id": "riding_club",
+    "n_questions": 17,
+    "n_families": 17
+  },
+  {
+    "db_id": "mountain_photos",
+    "n_questions": 17,
+    "n_families": 17
+  },
+  {
+    "db_id": "local_govt_and_lot",
+    "n_questions": 17,
+    "n_families": 17
+  },
+  {
+    "db_id": "roller_coaster",
+    "n_questions": 17,
+    "n_families": 17
+  },
+  {
+    "db_id": "architecture",
+    "n_questions": 17,
+    "n_families": 17
+  },
+  {
+    "db_id": "department_management",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "customer_deliveries",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "station_weather",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "manufacturer",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "company_employee",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "battle_death",
+    "n_questions": 16,
+    "n_families": 16
+  },
+  {
+    "db_id": "machine_repair",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "party_host",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "ship_mission",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "workshop_paper",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "course_teach",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "singer",
+    "n_questions": 30,
+    "n_families": 15
+  },
+  {
+    "db_id": "performance_attendance",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "debate",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "phone_market",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "pilot_record",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "local_govt_in_alabama",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "decoration_competition",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "solvency_ii",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "customers_campaigns_ecommerce",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "customers_and_products_contacts",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "voter_1",
+    "n_questions": 15,
+    "n_families": 15
+  },
+  {
+    "db_id": "soccer_1",
+    "n_questions": 14,
+    "n_families": 14
+  },
+  {
+    "db_id": "local_govt_mdm",
+    "n_questions": 14,
+    "n_families": 14
+  },
+  {
+    "db_id": "company_1",
+    "n_questions": 7,
+    "n_families": 7
+  },
+  {
+    "db_id": "real_estate_properties",
+    "n_questions": 4,
+    "n_families": 4
+  }
+]

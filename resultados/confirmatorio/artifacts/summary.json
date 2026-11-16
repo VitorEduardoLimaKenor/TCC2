@@ -1,0 +1,372 @@
+{
+  "C0|en": {
+    "n": 471,
+    "ex": 0.7494692144373672,
+    "em_oficial": 0.5222929936305732,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 103,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.3036093418259023,
+    "not_executable": 24,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.0,
+    "prompt_tokens_mean": 436.4140127388535,
+    "latency_p50": 1841.28,
+    "latency_p95": 3151.71,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8555555555555555
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.5578947368421052
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7596153846153846
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7912087912087912
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 33
+  },
+  "C0|pt": {
+    "n": 471,
+    "ex": 0.6687898089171974,
+    "em_oficial": 0.4713375796178344,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 123,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.25902335456475584,
+    "not_executable": 27,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.0,
+    "prompt_tokens_mean": 465.1804670912951,
+    "latency_p50": 1907.9,
+    "latency_p95": 2954.39,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.7333333333333333
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.5157894736842106
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.6826923076923077
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7087912087912088
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 32
+  },
+  "C1|en": {
+    "n": 471,
+    "ex": 0.7770700636942676,
+    "em_oficial": 0.5966029723991507,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 64,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.35456475583864117,
+    "not_executable": 25,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.47558386411889597,
+    "prompt_tokens_mean": 654.0743099787686,
+    "latency_p50": 1995.44,
+    "latency_p95": 3572.52,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8111111111111111
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.6631578947368421
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7788461538461539
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.8186813186813187
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 34
+  },
+  "C1|pt": {
+    "n": 471,
+    "ex": 0.7006369426751592,
+    "em_oficial": 0.5456475583864119,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 75,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.3354564755838641,
+    "not_executable": 20,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.5010615711252654,
+    "prompt_tokens_mean": 689.6157112526539,
+    "latency_p50": 2110.03,
+    "latency_p95": 3486.9,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.7777777777777778
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.5684210526315789
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.6346153846153846
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7692307692307693
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 32
+  },
+  "C2|en": {
+    "n": 471,
+    "ex": 0.7919320594479831,
+    "em_oficial": 0.6305732484076433,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 64,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.4394904458598726,
+    "not_executable": 15,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.5605095541401274,
+    "prompt_tokens_mean": 663.4777070063694,
+    "latency_p50": 2080.56,
+    "latency_p95": 3642.3,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8555555555555555
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.631578947368421
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7884615384615384
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.8461538461538461
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 34
+  },
+  "C2|pt": {
+    "n": 471,
+    "ex": 0.7473460721868365,
+    "em_oficial": 0.5902335456475584,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 72,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.40976645435244163,
+    "not_executable": 21,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.5711252653927813,
+    "prompt_tokens_mean": 703.8832271762208,
+    "latency_p50": 2283.07,
+    "latency_p95": 4140.44,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.7777777777777778
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.631578947368421
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7596153846153846
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7857142857142857
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 33
+  },
+  "C3|en": {
+    "n": 471,
+    "ex": 0.8067940552016986,
+    "em_oficial": 0.6454352441613588,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 60,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.445859872611465,
+    "not_executable": 13,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.5668789808917197,
+    "prompt_tokens_mean": 665.1443736730361,
+    "latency_p50": 2049.37,
+    "latency_p95": 3722.11,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8666666666666667
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.6631578947368421
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.8076923076923077
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.8516483516483516
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 34
+  },
+  "C3|pt": {
+    "n": 471,
+    "ex": 0.7558386411889597,
+    "em_oficial": 0.5987261146496815,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 70,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.4182590233545648,
+    "not_executable": 21,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.5753715498938429,
+    "prompt_tokens_mean": 706.4904458598726,
+    "latency_p50": 2309.61,
+    "latency_p95": 4254.44,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.631578947368421
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7788461538461539
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7857142857142857
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 33
+  },
+  "C4|en": {
+    "n": 471,
+    "ex": 0.7983014861995754,
+    "em_oficial": 0.6475583864118896,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 55,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.4437367303609342,
+    "not_executable": 15,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.6348195329087049,
+    "prompt_tokens_mean": 660.6178343949044,
+    "latency_p50": 2009.5,
+    "latency_p95": 3676.68,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.8666666666666667
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.6736842105263158
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7980769230769231
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.8296703296703297
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 34
+  },
+  "C4|pt": {
+    "n": 471,
+    "ex": 0.7600849256900213,
+    "em_oficial": 0.6178343949044586,
+    "em_n": 471,
+    "em_referencia_nao_analisavel": 0,
+    "em_predicao_nao_analisavel": 59,
+    "sem_em_oficial": 0,
+    "em_canonico_proprio": 0.43312101910828027,
+    "not_executable": 13,
+    "fallback_rate": 0.0,
+    "structural_hit": 0.6751592356687898,
+    "prompt_tokens_mean": 701.1825902335456,
+    "latency_p50": 2326.02,
+    "latency_p95": 4228.95,
+    "by_difficulty": {
+      "easy": {
+        "n": 90,
+        "ex": 0.7888888888888889
+      },
+      "extra": {
+        "n": 95,
+        "ex": 0.6526315789473685
+      },
+      "hard": {
+        "n": 104,
+        "ex": 0.7884615384615384
+      },
+      "medium": {
+        "n": 182,
+        "ex": 0.7857142857142857
+      }
+    },
+    "referencia_invalida": 0,
+    "tempo_predicao": 0,
+    "acertos_ambos_vazios": 32
+  }
+}

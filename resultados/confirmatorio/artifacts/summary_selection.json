@@ -1,0 +1,21 @@
+{
+  "run_ids": [
+    "confirmatorio-test-a99f7394fedc945b-fb350ed2"
+  ],
+  "config_hash": "a99f7394fedc945b",
+  "partition_digest": "948225fbfa08dab4",
+  "split": "test",
+  "runs_dir": "/content/tcc/artifacts/runs-v2",
+  "ex_avaliador": "spider-oficial exec_eval test-suite-sql-eval@e97acc5; banco original; keep_distinct=False; plug_value=False; sqlparse=0.6.0",
+  "em_avaliador": "spider-oficial evaluation.eval_exact_match test-suite-sql-eval@e97acc5; sem valores; sem DISTINCT; chaves estrangeiras do tables.json; nltk=3.9.4; punkt_tab=87b7437941fb4df1",
+  "codigo_revisoes": [
+    "ff4abc8ac8bfa6867b21c9148e37719854053507"
+  ],
+  "formato_log": 4,
+  "indice_digest": "8eeffab149bcfc62",
+  "template_sha256": "54de087aaf71aef99af8f9fb8270e377665b61f86b12c8cdde28c3c6e3189adf",
+  "ambientes": [
+    "{\"accelerate\": \"1.15.0\", \"bitsandbytes\": \"0.50.2\", \"nltk\": \"3.9.4\", \"qdrant-client\": \"1.20.0\", \"sentence-transformers\": \"5.7.0\", \"sqlglot\": \"30.17.0\", \"sqlparse\": \"0.6.0\", \"torch\": \"2.14.1+cu130\", \"transformers\": \"5.22.1\", \"vllm\": null}"
+  ],
+  "n_rows": 4710
+}

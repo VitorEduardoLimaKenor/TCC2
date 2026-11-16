@@ -219,6 +219,7 @@ figuras do Capítulo 5 saem desse arquivo, sem transcrição manual:
 python scripts/tabelas_cap5.py <analise-val.json> <analise-test.json> <Textual/tabelas>
 python scripts/figuras/resultados.py <analise-test.json> <Images>
 python scripts/figuras/f01_arquitetura.py <Images>
+python scripts/figuras/f09_fundamentos.py <Images>   # diagramas do Capítulo 2
 python scripts/figuras/f02_particao.py data/spider <manifest.json> <Images>
 python scripts/perfil_dificuldade.py data/spider <manifest.json> perfil.json
 python scripts/figuras/f04_dificuldade.py perfil.json <Images>
@@ -251,6 +252,10 @@ Depois dele, mudar a configuração ou a revisão do código impede a geração 
 teste.
 
 ### Dos registros às tabelas e figuras da monografia
+
+Os registros da rodada confirmatória (manifesto, congelamento, execuções por
+pergunta da validação e do teste, latência e análises) estão em
+[`resultados/confirmatorio/`](resultados/confirmatorio/README.md).
 
 A rodada de 14–15/11/2026 foi gerada com a revisão `ff4abc8` (a do registro de
 congelamento). O notebook `notebooks/confirmatorio.ipynb` roda `rodada.sh`

@@ -1,0 +1,13 @@
+{
+  "families_crossing": [],
+  "canonical_sql_shared": [],
+  "near_duplicates": [],
+  "unpaired": [],
+  "counts": {
+    "pool": 1121,
+    "val": 275,
+    "test": 471,
+    "bancos": 17,
+    "famílias": 928
+  }
+}

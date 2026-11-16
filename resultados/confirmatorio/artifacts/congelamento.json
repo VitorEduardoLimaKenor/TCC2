@@ -1,0 +1,283 @@
+{
+ "formato": 1,
+ "congelado_em_utc": "2026-11-14T06:21:38Z",
+ "codigo_revisao": "ff4abc8ac8bfa6867b21c9148e37719854053507",
+ "configuracao": {
+  "arquivo": "configs/confirmatorio.yaml",
+  "config_hash": "a99f7394fedc945b",
+  "conteudo": {
+   "name": "confirmatorio",
+   "paths": {
+    "spider_root": "/content/tcc/data/spider",
+    "questions_pt": "/content/tcc/data/spider_pt/questions_pt.json",
+    "work_dir": "/content/tcc/artifacts"
+   },
+   "data": {
+    "min_questions_per_db": 90,
+    "min_families_per_db": 25,
+    "pool_ratio": 0.6,
+    "val_ratio": 0.15,
+    "test_ratio": 0.25,
+    "near_duplicate_threshold": 0.92,
+    "seed": 20260904
+   },
+   "embedding": {
+    "model": "intfloat/multilingual-e5-base",
+    "revision": "d128750597153bb5987e10b1c3493a34e5a4502a",
+    "device": "cuda",
+    "batch_size": 128,
+    "normalize": true,
+    "query_prefix": "query: ",
+    "passage_prefix": "passage: "
+   },
+   "qdrant": {
+    "mode": "local",
+    "path": "/content/tcc/artifacts/qdrant-confirmatorio",
+    "url": "http://localhost:6333",
+    "collection": "demos",
+    "distance": "Cosine"
+   },
+   "retrieval": {
+    "k": 4,
+    "n_candidates": 25,
+    "lambda_question": 0.95,
+    "fixed_demo_seed": 20260919
+   },
+   "generation": {
+    "backend": "hf",
+    "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "revision": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+    "quantization": "bitsandbytes-4bit",
+    "dtype": "float16",
+    "max_context_tokens": 4096,
+    "max_new_tokens": 256,
+    "temperature": 0.0,
+    "seed": 20261010,
+    "batch_size": 4,
+    "enable_prefix_caching": true,
+    "gpu_memory_utilization": 0.9
+   },
+   "sandbox": {
+    "timeout_s": 15.0,
+    "max_rows": 5000
+   }
+  },
+  "arquivo_sha256": "fee82c30830dd72ba5bd57b598559bbd6e0166795da0f77b19e720b842c4eba0"
+ },
+ "modelos": {
+  "gerador": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "gerador_revisao": "c03e6d358207e414f1eca0bb1891e29f1db0e242",
+  "quantizacao": "bitsandbytes-4bit",
+  "vetorizador": "intfloat/multilingual-e5-base",
+  "vetorizador_revisao": "d128750597153bb5987e10b1c3493a34e5a4502a"
+ },
+ "dados": {
+  "partition_digest": "948225fbfa08dab4",
+  "manifesto_sha256": "4c96a86f5670b1d974f6f7e5fd2e0a4c1b03e56404dadf68376d7becc6126892",
+  "questions_pt_sha256": "e5584fad25fc3364a3d644e85b39f8a1795472aa13111fa4e62a2f3bc4209d0e",
+  "estratos_literais_sha256": "f78bf3630ca3e03af9515f4a62dc4b129d8b4f02dbb98575e8cfecf0441bc1bc",
+  "indice_digest": "8eeffab149bcfc62",
+  "template_sha256": "54de087aaf71aef99af8f9fb8270e377665b61f86b12c8cdde28c3c6e3189adf"
+ },
+ "avaliadores": {
+  "ex": "spider-oficial exec_eval test-suite-sql-eval@e97acc5; banco original; keep_distinct=False; plug_value=False; sqlparse=0.6.0",
+  "em": "spider-oficial evaluation.eval_exact_match test-suite-sql-eval@e97acc5; sem valores; sem DISTINCT; chaves estrangeiras do tables.json; nltk=3.9.4; punkt_tab=87b7437941fb4df1"
+ },
+ "ambiente_da_validacao": {
+  "python": "3.13.16",
+  "sistema": "Linux",
+  "bibliotecas": {
+   "torch": "2.14.1+cu130",
+   "transformers": "5.22.1",
+   "accelerate": "1.15.0",
+   "bitsandbytes": "0.50.2",
+   "vllm": null,
+   "sentence-transformers": "5.7.0",
+   "sqlglot": "30.17.0",
+   "sqlparse": "0.6.0",
+   "nltk": "3.9.4",
+   "qdrant-client": "1.20.0"
+  },
+  "gpu": "Tesla T4"
+ },
+ "validacao": {
+  "run_ids": [
+   "confirmatorio-val-a99f7394fedc945b-c2432bd2"
+  ],
+  "codigo_revisoes": [
+   "ff4abc8ac8bfa6867b21c9148e37719854053507"
+  ],
+  "conferencia": {
+   "aprovado": true,
+   "falhas": [],
+   "limites": {
+    "referencias_invalidas_max": 5,
+    "prompts_no_limite_de_entrada_max": 0,
+    "nao_executaveis_por_celula_max": 0.15,
+    "recurso_ordenacao_inicial_c4_max": 0.2,
+    "ex_c0_en_min": 0.5,
+    "ex_c0_en_max": 0.95,
+    "k_efetivo_completo_min": 0.99
+   },
+   "linhas": 2750,
+   "linhas_por_celula": {
+    "C0|en": 275,
+    "C0|pt": 275,
+    "C1|en": 275,
+    "C1|pt": 275,
+    "C2|en": 275,
+    "C2|pt": 275,
+    "C3|en": 275,
+    "C3|pt": 275,
+    "C4|en": 275,
+    "C4|pt": 275
+   },
+   "referencias_invalidas": [],
+   "prompts_no_limite_de_entrada": 0,
+   "k_nominal_observado": 4,
+   "prompts_com_k_completo": 1.0,
+   "por_celula": {
+    "C0|en": {
+     "n": 275,
+     "ex": 0.7636363636363637,
+     "nao_executaveis": 0.03272727272727273,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C0|pt": {
+     "n": 275,
+     "ex": 0.6254545454545455,
+     "nao_executaveis": 0.05818181818181818,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C1|en": {
+     "n": 275,
+     "ex": 0.7745454545454545,
+     "nao_executaveis": 0.04727272727272727,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C1|pt": {
+     "n": 275,
+     "ex": 0.6727272727272727,
+     "nao_executaveis": 0.06181818181818182,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C2|en": {
+     "n": 275,
+     "ex": 0.7745454545454545,
+     "nao_executaveis": 0.02909090909090909,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C2|pt": {
+     "n": 275,
+     "ex": 0.6872727272727273,
+     "nao_executaveis": 0.02909090909090909,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C3|en": {
+     "n": 275,
+     "ex": 0.7745454545454545,
+     "nao_executaveis": 0.02181818181818182,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C3|pt": {
+     "n": 275,
+     "ex": 0.6909090909090909,
+     "nao_executaveis": 0.02909090909090909,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C4|en": {
+     "n": 275,
+     "ex": 0.7854545454545454,
+     "nao_executaveis": 0.02181818181818182,
+     "recurso_ordenacao_inicial": 0.0
+    },
+    "C4|pt": {
+     "n": 275,
+     "ex": 0.6981818181818182,
+     "nao_executaveis": 0.025454545454545455,
+     "recurso_ordenacao_inicial": 0.0
+    }
+   }
+  },
+  "analise_sha256": "1dea28afb3eca8da49d76f58ad848857936c52715a45cffab09698e9f597def8",
+  "poder": {
+   "C3-C2|pt": {
+    "taxa_discordancia_observada": 0.0036363636363636364,
+    "ic95_taxa_wilson": [
+     0.0006421961285276914,
+     0.02030683671878191
+    ],
+    "n_teste": 471,
+    "alfa_0.05": {
+     "dmd_80": null,
+     "dmd_80_taxa_ic_inferior": null,
+     "dmd_80_taxa_ic_superior": 0.02,
+     "poder_para_diferenca_observada": 0.008145797897082727
+    },
+    "alfa_0.025": {
+     "dmd_80": null,
+     "dmd_80_taxa_ic_inferior": null,
+     "dmd_80_taxa_ic_superior": 0.02,
+     "poder_para_diferenca_observada": 0.0019052793379814186
+    }
+   },
+   "C4-C2|pt": {
+    "taxa_discordancia_observada": 0.07636363636363637,
+    "ic95_taxa_wilson": [
+     0.05048632080948255,
+     0.11391340319573041
+    ],
+    "n_teste": 471,
+    "alfa_0.05": {
+     "dmd_80": 0.0375,
+     "dmd_80_taxa_ic_inferior": 0.03,
+     "dmd_80_taxa_ic_superior": 0.045,
+     "poder_para_diferenca_observada": 0.10190741484470162
+    },
+    "alfa_0.025": {
+     "dmd_80": 0.04,
+     "dmd_80_taxa_ic_inferior": 0.0325,
+     "dmd_80_taxa_ic_superior": 0.05,
+     "poder_para_diferenca_observada": 0.062323914190529274
+    }
+   },
+   "C4-C3|pt": {
+    "taxa_discordancia_observada": 0.07272727272727272,
+    "ic95_taxa_wilson": [
+     0.047569939880883275,
+     0.10965724956643451
+    ],
+    "n_teste": 471,
+    "alfa_0.05": {
+     "dmd_80": 0.0375,
+     "dmd_80_taxa_ic_inferior": 0.03,
+     "dmd_80_taxa_ic_superior": 0.045,
+     "poder_para_diferenca_observada": 0.06283343598551584
+    },
+    "alfa_0.025": {
+     "dmd_80": 0.04,
+     "dmd_80_taxa_ic_inferior": 0.0325,
+     "dmd_80_taxa_ic_superior": 0.05,
+     "poder_para_diferenca_observada": 0.03642645346138798
+    }
+   }
+  }
+ },
+ "teste": {
+  "perguntas": 471,
+  "linhas_esperadas": 4710
+ },
+ "plano_de_analise": {
+  "desfecho_principal": "acurácia de execução oficial do Spider (test-suite-sql-eval @ e97acc5, keep_distinct=False)",
+  "comparacao_primaria": "C3 − C2 em português brasileiro: McNemar exato bilateral; IC de 95% por bootstrap pareado estratificado por banco (10.000 reamostras, semente da configuração)",
+  "h1": "C4 − C2 em português brasileiro, mesmo procedimento; corroborada se a diferença for positiva, o IC excluir zero e o valor-p ajustado for inferior a 5%",
+  "multiplicidade": "família {C3 − C2, C4 − C2} em português; correção de Holm; nível global de 5% bilateral",
+  "h2": "Δ = (EX_PT,C4 − EX_PT,C0) − (EX_EN,C4 − EX_EN,C0), com IC de 95%; intervalo que contém zero é reportado como inconclusivo",
+  "h3": "diferença de EX entre perguntas com e sem acerto estrutural, por condição com demonstrações, bruta e ajustada pela dificuldade oficial, com IC de 95%; associação observacional",
+  "exploratorias": "C4 − C3, C2 − C1, C1 − C0, C3 − C0, todos os contrastes em inglês, EN − PT por condição, Δ com C3 e C0, estratos de literal traduzido (pré-registro de 28/10/2026), EM oficial, sensibilidade keep_distinct=True, rubrica automática de erros, sobreposição das demonstrações",
+  "denominadores": "pergunta com referência inválida sai de todas as condições e idiomas",
+  "custo": "tokens sem preenchimento do lote na rodada principal (em C4, somada a consulta preliminar); latência em passagem dedicada com lote unitário sobre 100 perguntas do teste em português, estratificadas por banco",
+  "apos_a_abertura": "nenhum parâmetro é reajustado; a rodada é retomada apenas para os itens que faltam; nenhuma tentativa é selecionada por desempenho; a análise de erros vem depois do registro dos resultados"
+ },
+ "decisoes_do_autor": "11/11/2026: adotadas as recomendações registradas para D-006, D-009 (Holm), D-010 (sem repetir a varredura; sem a ablação E12), D-014, D-018, D-019, D-020 e D-021; 28/10/2026: C3 como método da comparação principal qualquer que seja a validação (D-003)"
+}

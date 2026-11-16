@@ -66,7 +66,7 @@ def main(entrada: str, saida: str, n_linhas: str = "8") -> int:
     corpo = "\n\\hline\n".join(linhas)
     lam = num(cfg["lambda_question"], 2)
     tex = (
-        "\\begin{table}[H]\n\\centering\n"
+        "\\begin{table}[!htbp]\n\\centering\n"
         f"\\caption{{Exemplo do mecanismo com uma pergunta do conjunto de validação (banco \\texttt{{{esc(e['db_id'])}}}): "
         f"candidatos da primeira etapa, similaridades e seleção em C3 e C4, com $k = {k}$, $N = {cfg['n_candidates']}$ "
         f"e $\\lambda = {lam}$.}}\n\\footnotesize\n"
@@ -86,7 +86,7 @@ def main(entrada: str, saida: str, n_linhas: str = "8") -> int:
         "Pos. 1ª et.: posição pela similaridade da pergunta delexicalizada (as $k$ primeiras são a seleção de C3). "
         "Sim. estr.: similaridade entre a assinatura da consulta preliminar e a da consulta da demonstração. "
         "Sel.: condições que incluíram a demonstração no \\textit{prompt}. A consulta de referência não participa "
-        "da seleção.}\n"
+        "da seleção. As perguntas são reproduzidas literalmente do conjunto de dados, inclusive em suas repetições.}\n"
         "\\vspace{0.1\\baselineskip}\n\\newline \\footnotesize \\textbf{Fonte: Autoria própria (2026).}\n"
         "\\label{tab:exemplo_mecanismo}\n\\end{table}\n"
     )

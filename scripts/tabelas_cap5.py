@@ -137,7 +137,8 @@ def contrastes(a: dict, rotulo: str, legenda: str, com_holm: bool) -> str:
                  + cab("Discor-", "dantes") + " & \\textbf{Valor-p}" + (" & " + cab("Valor-p", "(Holm)") if com_holm else ""))
     return tabela(
         "l|c|c|c|c" + ("|c" if por_familia else "") + ("|c" if com_holm else ""), cabecalho, linhas, legenda, rotulo,
-        "IC de 95\\%: reamostragem pareada estratificada por banco" + ("; por família: a unidade reamostrada é a "
+        "pp: pontos percentuais. IC: intervalo de confiança, calculado ao nível de 95\\% por reamostragem pareada "
+        "estratificada por banco" + ("; por família: a unidade reamostrada é a "
         "família canônica (análise de sensibilidade)" if por_familia else "") + ". Discordantes: perguntas em que só a "
         "primeira condição acerta / só a segunda acerta. Valor-p: teste exato de McNemar, bilateral.",
     )
@@ -247,7 +248,7 @@ def teste_custo(a: dict) -> str:
             "C4, não inclui a consulta preliminar. "
             + (f"Latência: passagem dedicada com uma pergunta por vez ({prot.get('n_medicoes')} medições; "
                f"{prot.get('gpu')}). " if tem_lat and prot else "")
-            + "Ganho marginal: pontos percentuais de acurácia por cem tokens de entrada adicionais em relação a C0.")
+            + "Ganho marginal: pontos percentuais de acurácia por cem \\textit{tokens} de entrada adicionais em relação a C0.")
     return tabela(
         "l|c|c|c|c|c|" + ("c|c|" if tem_lat else "") + "c",
         "\\textbf{Condição} & " + cab("EX", "(\\%)") + " & " + cab("Cha-", "madas") + " & " + cab("Tokens", "entrada")
@@ -306,6 +307,11 @@ def teste_h3(a: dict) -> str:
         "Acurácia de execução (\\%) em português brasileiro conforme o acerto estrutural das demonstrações, no conjunto "
         "de teste.",
         "tab:h3",
+        "Acerto estrutural: presença, no \\textit{prompt}, de ao menos uma demonstração com assinatura compatível com a "
+        "da consulta de referência. Entre parênteses, o número de perguntas de cada grupo. Diferenças em pontos "
+        "percentuais (acurácia com acerto estrutural menos acurácia sem ele), com intervalo de confiança de 95\\% "
+        "entre colchetes. A diferença ajustada é a média das diferenças por nível de dificuldade, ponderada pelo "
+        "número de perguntas de cada nível. Associações observacionais.",
     )
 
 
