@@ -73,11 +73,13 @@ def inteiro(n: int) -> str:
 
 
 def tabela(colunas: str, cabecalho: str, linhas: list[str], legenda: str, rotulo: str, nota: str = "",
-           ajuste: str = "") -> str:
-    """`ajuste`: comandos locais ao ambiente (por exemplo, o espaço entre colunas de uma tabela larga)."""
+           ajuste: str = "", posicao: str = "H") -> str:
+    """`ajuste`: comandos locais ao ambiente (por exemplo, o espaço entre colunas de uma tabela larga).
+    `posicao`: especificador de posição do ambiente; "H" fixa a tabela no ponto do texto, e "!htbp" a deixa
+    flutuar para evitar uma página com espaço em branco quando ela não cabe no fim da página."""
     corpo = "\n\\hline\n".join(linhas)
     return (
-        "\\begin{table}[H]\n\\centering\n"
+        f"\\begin{{table}}[{posicao}]\n\\centering\n"
         f"\\caption{{{legenda}}}\n\\footnotesize\n{ajuste}"
         f"\\begin{{tabular}}{{{colunas}}}\n\\hline\n{cabecalho} \\\\\n\\hline\n{corpo}\n\\hline\n\\end{{tabular}}\n"
         + (f"\\par\\vspace{{0.3\\baselineskip}}\n\\parbox{{0.94\\linewidth}}{{\\footnotesize\\raggedright {nota}}}\n"
@@ -260,6 +262,7 @@ def teste_custo(a: dict) -> str:
         "tab:custo",
         nota,
         ajuste="\\setlength{\\tabcolsep}{3.5pt}\n" if tem_lat else "",
+        posicao="!htbp",
     )
 
 
