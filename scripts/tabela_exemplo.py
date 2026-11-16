@@ -67,9 +67,7 @@ def main(entrada: str, saida: str, n_linhas: str = "8") -> int:
     lam = num(cfg["lambda_question"], 2)
     tex = (
         "\\begin{table}[!htbp]\n\\centering\n"
-        f"\\caption{{Exemplo do mecanismo com uma pergunta do conjunto de validação (banco \\texttt{{{esc(e['db_id'])}}}): "
-        f"candidatos da primeira etapa, similaridades e seleção em C3 e C4, com $k = {k}$, $N = {cfg['n_candidates']}$ "
-        f"e $\\lambda = {lam}$.}}\n\\footnotesize\n"
+        f"\\caption{{Exemplo das duas etapas de recuperação (banco \\texttt{{{esc(e['db_id'])}}}).}}\n\\footnotesize\n"
         "\\begin{tabularx}{\\linewidth}{>{\\raggedright\\arraybackslash}p{2.9cm}|X}\n\\hline\n"
         f"\\textbf{{Pergunta}} & {esc(e['pergunta'])} \\\\\n\\hline\n"
         f"\\textbf{{Delexicalizada}} & {esc(e['pergunta_delexicalizada'])} \\\\\n\\hline\n"
@@ -83,6 +81,7 @@ def main(entrada: str, saida: str, n_linhas: str = "8") -> int:
         "\\shortstack{\\rule{0pt}{2.5ex}\\textbf{Pos.}\\\\{}\\textbf{final}} & \\textbf{Sel.} \\\\\n\\hline\n"
         f"{corpo}\n\\hline\n\\end{{tabularx}}\n"
         "\\par\\vspace{0.3\\baselineskip}\n\\parbox{0.94\\linewidth}{\\footnotesize\\raggedright "
+        f"Pergunta do conjunto de validação, com $k = {k}$, $N = {cfg['n_candidates']}$ e $\\lambda = {lam}$. "
         "Pos. 1ª et.: posição pela similaridade da pergunta delexicalizada (as $k$ primeiras são a seleção de C3). "
         "Sim. estr.: similaridade entre a assinatura da consulta preliminar e a da consulta da demonstração. "
         "Sel.: condições que incluíram a demonstração no \\textit{prompt}. A consulta de referência não participa "

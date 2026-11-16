@@ -107,10 +107,9 @@ def val_condicoes(a: dict) -> str:
         "\\textbf{Condição} & " + cab("EX PT", "(\\%)") + " & " + cab("EX EN", "(\\%)") + " & "
         + cab("Acerto estr.", "PT (\\%)") + " & " + cab("Tokens ent.", "PT"),
         linhas,
-        f"Validação com a tradução definitiva: acurácia de execução por condição e idioma ($n = {n}$ perguntas, "
-        "configuração candidata).",
+        f"Acurácia de execução por condição e idioma na validação ($n = {n}$).",
         "tab:validacao_ptbr",
-        "Tokens de entrada: média por pergunta; em C4, somadas as duas chamadas ao modelo.",
+        "Configuração candidata. Tokens de entrada: média por pergunta; em C4, somadas as duas chamadas ao modelo.",
     )
 
 
@@ -166,9 +165,9 @@ def teste_dificuldade(a: dict) -> str:
         "\\textbf{Condição} & \\textbf{Fácil} & \\textbf{Médio} & \\textbf{Difícil} & \\textbf{Extra} & \\textbf{Total} & "
         "\\textbf{Não exec.}",
         linhas,
-        "Acurácia de execução (\\%) em português brasileiro no conjunto de teste, por nível de dificuldade "
-        f"(classificação oficial do \\textit{{Spider}}; $n = {a['n_exemplos']}$).",
+        "Acurácia de execução em português brasileiro por nível de dificuldade.",
         "tab:resultados_ptbr",
+        "Acurácia em \\%, pela classificação oficial de dificuldade do \\textit{Spider}. "
         f"Perguntas por nível: {ns}. Não exec.: número de predições que não executam ou excedem o limite de tempo.",
     )
 
@@ -196,10 +195,10 @@ def teste_recuperador(a: dict) -> str:
         "\\textbf{Condição} & " + cab("Acerto estr.", "PT (\\%)") + " & " + cab("Acerto estr.", "EN (\\%)") + " & "
         + cab("$k$", "efetivo") + " & " + cab("Recurso à ord.", "inicial (\\%)"),
         linhas,
-        "Acerto estrutural entre as demonstrações que entraram no \\textit{prompt}, número efetivo de demonstrações e "
-        "recurso à ordenação inicial, no conjunto de teste.",
+        "Desempenho do recuperador no conjunto de teste.",
         "tab:recuperador",
-        "n.a.: não se aplica, pois apenas C4 gera consulta preliminar.",
+        "Acerto estrutural entre as demonstrações que entraram no \\textit{prompt}. $k$ efetivo: número efetivo de "
+        "demonstrações. n.a.: não se aplica, pois apenas C4 gera consulta preliminar.",
     )
 
 
@@ -218,8 +217,7 @@ def teste_idiomas(a: dict) -> str:
         "\\textbf{Condição} & \\textbf{Inglês (\\%)} & \\textbf{Português (\\%)} & \\textbf{EN $-$ PT (pp)} & "
         "\\textbf{IC de 95\\%}",
         linhas,
-        f"Acurácia de execução por idioma no conjunto de teste e diferença entre os idiomas ($n = {a['n_exemplos']}$ "
-        "perguntas pareadas).",
+        f"Acurácia de execução por idioma e diferença entre os idiomas ($n = {a['n_exemplos']}$).",
         "tab:idiomas",
     )
 
@@ -258,7 +256,7 @@ def teste_custo(a: dict) -> str:
         + ((" & " + cab("Lat. p50", "(s)") + " & " + cab("Lat. p95", "(s)")) if tem_lat else "")
         + " & " + cab("Ganho", "marg."),
         linhas,
-        "Acurácia, custo computacional e ganho marginal por condição, em português brasileiro.",
+        "Acurácia, custo e ganho marginal por condição, em português brasileiro.",
         "tab:custo",
         nota,
         ajuste="\\setlength{\\tabcolsep}{3.5pt}\n" if tem_lat else "",
@@ -283,9 +281,9 @@ def teste_erros(a: dict) -> str:
         "p{7.4cm}|" + "|".join("c" for _ in conds),
         "\\textbf{Categoria (primeira regra que se aplica)} & " + " & ".join(f"\\textbf{{{c}}}" for c in conds),
         linhas,
-        f"Predições incorretas em português brasileiro no conjunto de teste, por categoria da rubrica automática "
-        f"($n = {a['n_exemplos']}$ perguntas por condição).",
+        "Predições incorretas em português brasileiro, por categoria de erro.",
         "tab:erros",
+        f"Categorias da rubrica automática; {a['n_exemplos']} perguntas por condição.",
     )
 
 
@@ -307,10 +305,9 @@ def teste_h3(a: dict) -> str:
         "\\textbf{Cond.} & " + cab("EX com acerto", "estrutural ($n$)") + " & " + cab("EX sem acerto", "estrutural ($n$)")
         + " & " + cab("Diferença (pp)", "e IC de 95\\%") + " & " + cab("Diferença ajustada", "pela dificuldade"),
         linhas,
-        "Acurácia de execução (\\%) em português brasileiro conforme o acerto estrutural das demonstrações, no conjunto "
-        "de teste.",
+        "Acurácia de execução com e sem acerto estrutural, em português brasileiro.",
         "tab:h3",
-        "Acerto estrutural: presença, no \\textit{prompt}, de ao menos uma demonstração com assinatura compatível com a "
+        "Acurácia em \\%. Acerto estrutural: presença, no \\textit{prompt}, de ao menos uma demonstração com assinatura compatível com a "
         "da consulta de referência. Entre parênteses, o número de perguntas de cada grupo. Diferenças em pontos "
         "percentuais (acurácia com acerto estrutural menos acurácia sem ele), com intervalo de confiança de 95\\% "
         "entre colchetes. A diferença ajustada é a média das diferenças por nível de dificuldade, ponderada pelo "
@@ -341,9 +338,9 @@ def teste_literal(a: dict) -> str:
         "\\textbf{Estrato} & \\textbf{$n$} & " + cab("EX em C0,", "PT / EN (\\%)") + " & " + cab("EN $-$ PT", "em C0")
         + " & " + cab("EN $-$ PT", "em C4") + " & " + cab("C3 $-$ C2", "em PT"),
         linhas,
-        "Análise estratificada pela presença de literal traduzido no conjunto de teste (exploratória). Diferenças em "
-        "pontos percentuais, com IC de 95\\%.",
+        "Análise estratificada por literal traduzido (exploratória).",
         "tab:literal",
+        "Diferenças em pontos percentuais, com intervalo de confiança de 95\\% entre colchetes.",
     )
 
 
@@ -360,9 +357,9 @@ def teste_em(a: dict) -> str:
         "\\textbf{Condição} & " + cab("EM PT", "(\\%)") + " & " + cab("Não analis.", "PT") + " & " + cab("EM EN", "(\\%)")
         + " & " + cab("Não analis.", "EN"),
         linhas,
-        "Correspondência exata de conjuntos (EM oficial) no conjunto de teste e número de predições que o analisador "
-        "do avaliador não interpreta, contadas como incorretas.",
+        "Correspondência exata de conjuntos (EM oficial) no conjunto de teste.",
         "tab:em",
+        "Não analis.: predições que o analisador do avaliador não interpreta, contadas como incorretas.",
     )
 
 
@@ -373,7 +370,7 @@ def main(val: Path, teste: Path | None, saida: Path) -> None:
     arquivos["val_condicoes"] = val_condicoes(av)
     arquivos["val_contrastes"] = contrastes(
         av, "tab:validacao_contrastes",
-        f"Validação com a tradução definitiva: contrastes pareados em português brasileiro ($n = {av['n_exemplos']}$).",
+        f"Contrastes pareados em português brasileiro na validação ($n = {av['n_exemplos']}$).",
         com_holm=False)
     if teste is not None:
         at = json.loads(teste.read_text(encoding="utf-8"))
