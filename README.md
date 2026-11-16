@@ -220,6 +220,7 @@ python scripts/tabelas_cap5.py <analise-val.json> <analise-test.json> <Textual/t
 python scripts/figuras/resultados.py <analise-test.json> <Images>
 python scripts/figuras/f01_arquitetura.py <Images>
 python scripts/figuras/f09_fundamentos.py <Images>   # diagramas do Capítulo 2
+python scripts/figuras/f10_evolucao_text_sql.py <Images>   # Figura 1, adaptada de Shi et al. (2025)
 python scripts/figuras/f02_particao.py data/spider <manifest.json> <Images>
 python scripts/perfil_dificuldade.py data/spider <manifest.json> perfil.json
 python scripts/figuras/f04_dificuldade.py perfil.json <Images>
