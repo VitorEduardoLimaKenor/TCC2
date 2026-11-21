@@ -50,33 +50,43 @@ def rotulo(ax, x, y, texto, fs=7.0, ha="center", va="center"):
 
 
 def esquema_rag(saida: Path) -> None:
-    fig, ax = plt.subplots(figsize=(estilo.LARGURA, 2.55))
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 44)
-    ax.axis("off")
-    y, h = 25, 13
-    caixa(ax, 0, y, 15, h, "Entrada\ndo usuário", negrito=True)
-    caixa(ax, 21, y, 17, h, "Recuperador", cor=estilo.CINZA_CLARO, negrito=True)
-    caixa(ax, 44, y - 3, 25, h + 6, "", cor="#ffffff")
-    ax.text(56.5, y + h + 0.6, "Prompt", ha="center", va="top", fontsize=8.0, fontweight="bold")
+    """Duas fases: a indexação, feita antes, e a consulta; o mesmo modelo de embeddings nas duas."""
+    import diagrama as d
+
+    fig, ax = d.eixos(estilo.LARGURA, 3.15, ylim=(0, 58))
+    d.painel(ax, 0, 38, 100, 19.5, "Indexação (feita antes das consultas)")
+    d.painel(ax, 0, 0, 100, 36.5, "Consulta")
+    # indexação
+    d.caixa(ax, 1.5, 40.5, 23, 10.5, "Base de itens\n(documentos, esquema\nou exemplos resolvidos)", fs=6.5)
+    d.caixa(ax, 28, 41.5, 18, 8.5, "Modelo de\nembeddings", cor=estilo.CINZA_MEDIO, fs=7.0, negrito=True)
+    d.cilindro(ax, 47.5, 39.6, 11, 12.5)
+    d.rotulo(ax, 66.5, 45.8, "índice vetorial\n(vetores e metadados)", fs=6.6, ha="center", cor=estilo.TINTA)
+    d.seta(ax, 24.5, 45.75, 28, 45.75)
+    d.seta(ax, 46, 45.75, 47.5, 45.75)
+    # consulta
+    yc, hc = 17, 10
+    d.caixa(ax, 2, yc, 12, hc, "Entrada\ndo usuário", negrito=True, fs=7.0)
+    d.caixa(ax, 19, yc, 18, hc, "Modelo de\nembeddings\n(o mesmo)", cor=estilo.CINZA_MEDIO, fs=6.8, negrito=True)
+    d.caixa(ax, 43, yc, 17, hc, "Busca dos $k$\nitens mais\npróximos", cor="#ffffff", fs=6.8)
+    d.seta(ax, 14, yc + hc / 2, 19, yc + hc / 2)
+    d.seta(ax, 37, yc + hc / 2, 43, yc + hc / 2)
+    d.rotulo(ax, 40, yc + hc / 2 + 2.4, "vetor", fs=6.0)
+    d.seta(ax, 53, 39.6, 53, yc + hc, dupla=False)
+    d.rotulo(ax, 54.2, 32.5, "consulta\nao índice", fs=6.0, ha="left")
+    # prompt
+    d.caixa(ax, 63, 4, 22, 28.5, "", cor="#ffffff")
+    d.rotulo(ax, 74, 29.6, "Prompt", fs=7.4, negrito=True, cor=estilo.TINTA)
     for i, t in enumerate(("1. Instrução", "2. Itens recuperados", "3. Entrada do usuário")):
-        caixa(ax, 46, y + 6.6 - i * 4.7, 21, 3.9, t, cor=REALCE if i == 1 else "#ffffff",
-              borda=estilo.LARANJA if i == 1 else BORDA, fs=7.0, lw=1.1 if i == 1 else 0.7)
-    caixa(ax, 74, y, 14, h, "Modelo de\nlinguagem", cor=estilo.CINZA_CLARO, negrito=True, fs=7.6)
-    caixa(ax, 92, y, 8, h, "Saída", negrito=True)
-    seta(ax, 15, y + h / 2, 21, y + h / 2)
-    seta(ax, 38, y + h / 2, 44, y + h / 2)
-    seta(ax, 69, y + h / 2, 74, y + h / 2)
-    seta(ax, 88, y + h / 2, 92, y + h / 2)
-    # base externa
-    caixa(ax, 17.5, 1.5, 24, 12.5, "Base externa indexada\n(documentos, esquema\nou exemplos resolvidos)", fs=7.2)
-    seta(ax, 26.5, y, 26.5, 14.0)
-    seta(ax, 32.5, 14.0, 32.5, y)
-    rotulo(ax, 25.6, 19.5, "consulta", ha="right")
-    rotulo(ax, 33.4, 19.5, "itens mais\npróximos", ha="left")
-    # caminho da entrada original até o prompt (por cima)
-    ax.plot([7.5, 7.5, 56.5], [y + h, 42.0, 42.0], color=estilo.TINTA_2, linewidth=0.9, zorder=1)
-    seta(ax, 56.5, 42.0, 56.5, y + h + 3.2)
+        realce = i == 1
+        d.caixa(ax, 64.2, 21.2 - i * 7.2, 19.6, 5.4, t, fs=6.4, cor=d.REALCE if realce else "#ffffff",
+                borda=estilo.LARANJA if realce else d.BORDA, lw=1.1 if realce else 0.7)
+    d.seta(ax, 60, yc + hc / 2 - 2.0, 64.2, 16.7)
+    d.linha(ax, [8, 8, 62], [yc, 9.5, 9.5])
+    d.seta(ax, 62, 9.5, 64.2, 9.5)
+    d.caixa(ax, 87.5, 20, 12, 10, "Modelo de\nlinguagem", cor=estilo.CINZA_MEDIO, negrito=True, fs=6.8)
+    d.caixa(ax, 87.5, 4, 12, 7.5, "Saída", negrito=True, fs=7.0)
+    d.seta(ax, 85, 25, 87.5, 25)
+    d.seta(ax, 93.5, 20, 93.5, 11.5)
     estilo.salvar(fig, saida, "esquema_rag")
 
 

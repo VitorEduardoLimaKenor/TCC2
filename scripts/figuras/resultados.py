@@ -1,4 +1,4 @@
-"""F06, F07 e F08 — figuras dos resultados, a partir do JSON de `tcc-rag analise`.
+"""F06, F07, F08 e F11 — figuras dos resultados, a partir do JSON de `tcc-rag analise`.
 
 Uso: python scripts/figuras/resultados.py <analise-<split>-<hash>.json> <dir_saida> [sufixo]
 
@@ -258,12 +258,42 @@ def f08_h3(a: dict, saida: Path, sufixo: str) -> None:
     estilo.salvar(fig, saida, f"acerto_estrutural_h3{sufixo}")
 
 
+def f11_literal(a: dict, saida: Path, sufixo: str) -> None:
+    """Acurácia por condição e idioma em cada estrato de literal traduzido (análise registrada (iii))."""
+    lt = a.get("literal_traduzido")
+    if not lt:
+        return
+    estratos = [(e, lt["por_estrato"][e]) for e in ("LT", "SL") if lt["por_estrato"].get(e)]
+    titulos = {"LT": "Com literal traduzido", "SL": "Sem literal traduzido"}
+    fig, eixos_ = plt.subplots(1, len(estratos), figsize=(estilo.LARGURA, 2.7), sharey=True)
+    xs = list(range(len(CONDS)))
+    for ax, (e, b) in zip(eixos_, estratos):
+        pt = [100 * b["ex"][f"{c}|pt"] for c in CONDS]
+        en = [100 * b["ex"][f"{c}|en"] for c in CONDS]
+        ax.fill_between(xs, pt, en, color=estilo.CINZA_CLARO, zorder=0, linewidth=0)
+        ax.plot(xs, en, color=estilo.LARANJA, marker="s", markersize=4.5, linewidth=1.3, label="Inglês", zorder=3)
+        ax.plot(xs, pt, color=estilo.AZUL, marker="o", markersize=4.5, linewidth=1.3, label="Português", zorder=3)
+        for x, (vp, ve) in enumerate(zip(pt, en)):
+            ax.text(x, ve + 2.2, estilo.pct(ve), ha="center", va="bottom", fontsize=6.6, color=estilo.LARANJA)
+            ax.text(x, vp - 2.2, estilo.pct(vp), ha="center", va="top", fontsize=6.6, color=estilo.AZUL)
+        ax.set_xticks(xs, CONDS)
+        ax.set_title(f"{titulos[e]} ($n$ = {b['n']})", loc="left", fontsize=8.6, color=estilo.TINTA)
+        ax.set_ylim(20, 95)
+        ax.grid(axis="y", color=estilo.GRADE, linewidth=0.5)
+        ax.set_axisbelow(True)
+    eixos_[0].set_ylabel("Acurácia de execução (%)")
+    eixos_[0].legend(loc="lower right", frameon=False, handlelength=1.6)
+    fig.tight_layout(w_pad=1.5)
+    estilo.salvar(fig, saida, f"literal_idiomas{sufixo}")
+
+
 def main(entrada: Path, saida: Path, sufixo: str = "") -> None:
     a = json.loads(entrada.read_text(encoding="utf-8"))
     estilo.aplicar()
     f06_efeitos(a, saida, sufixo)
     f07_custo(a, saida, sufixo)
     f08_h3(a, saida, sufixo)
+    f11_literal(a, saida, sufixo)
     print("figuras em", saida)
 
 

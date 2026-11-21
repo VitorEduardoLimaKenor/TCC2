@@ -221,6 +221,10 @@ python scripts/figuras/resultados.py <analise-test.json> <Images>
 python scripts/figuras/f01_arquitetura.py <Images>
 python scripts/figuras/f09_fundamentos.py <Images>   # diagramas do Capítulo 2
 python scripts/figuras/f10_evolucao_text_sql.py <Images>   # Figura 1, adaptada de Shi et al. (2025)
+python scripts/figuras/f11_metodologia.py <Images>        # Cap. 4: fluxo de C4, prompt real (confere o SHA-256), protocolo
+python scripts/figuras/f12_fundamentos_extra.py <Images>  # Caps. 2 e 3: esquema × demonstrações, seleção, McNemar/bootstrap, linha do tempo
+python scripts/quadro_assinatura.py <Textual/tabelas/quadro_assinatura.tex>   # Quadro das 12 características, com os pesos do código
+python scripts/tabela_exemplo.py <exemplo-mecanismo.json> <Textual/tabelas/exemplo_mecanismo.tex>
 python scripts/figuras/f02_particao.py data/spider <manifest.json> <Images>
 python scripts/perfil_dificuldade.py data/spider <manifest.json> perfil.json
 python scripts/figuras/f04_dificuldade.py perfil.json <Images>

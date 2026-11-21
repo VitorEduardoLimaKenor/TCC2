@@ -1,4 +1,4 @@
-"""Quadro do exemplo do mecanismo (F03) em LaTeX, a partir do JSON de `exemplo_mecanismo.py`.
+"""Tabela do exemplo do mecanismo (F03) em LaTeX, a partir do JSON de `exemplo_mecanismo.py`.
 
 Uso: python scripts/tabela_exemplo.py <exemplo.json> <saida.tex> [n_linhas]
 
@@ -40,10 +40,13 @@ def assinatura(a: dict) -> str:
         if a[campo]:
             partes.append(rotulo)
     if a["n_subqueries"]:
-        partes.append(f"{a['n_subqueries']} subconsulta(s)")
+        partes.append(f"{a['n_subqueries']} subconsulta" + ("" if a["n_subqueries"] == 1 else "s"))
     if a["set_ops"]:
         partes.append("operação de conjunto (" + ", ".join(a["set_ops"]) + ")")
-    partes.append(f"{a['n_predicates']} predicado(s) de filtragem")
+    partes.append(f"{a['n_predicates']} predicado de filtragem" if a["n_predicates"] == 1
+                  else f"{a['n_predicates']} predicados de filtragem")
+    partes.append(f"{a['n_select_items']} item projetado" if a["n_select_items"] == 1
+                  else f"{a['n_select_items']} itens projetados")
     return "; ".join(partes)
 
 
@@ -59,33 +62,45 @@ def main(entrada: str, saida: str, n_linhas: str = "8") -> int:
         c3 = "C3" if c["posicao_primeira_etapa"] <= k else ""
         c4 = "C4" if c["selecionada"] else ""
         marcas = ", ".join(m for m in (c3, c4) if m) or "---"
+        # em cinza, as demonstrações que entram em só uma das duas seleções: é ali que C3 e C4 diferem
+        cor = "\\rowcolor{black!8}" if bool(c3) != bool(c4) else ""
         linhas.append(
-            f"{c['posicao_primeira_etapa']} & {esc(c['pergunta'])} & {num(c['sim_pergunta'])} & "
+            f"{cor}{c['posicao_primeira_etapa']} & {esc(c['pergunta'])} & {num(c['sim_pergunta'])} & "
             f"{num(c['sim_estrutural'])} & {num(c['escore'])} & {c['posicao_final']} & {marcas} \\\\"
         )
-    corpo = "\n\\hline\n".join(linhas)
+    corpo = "\n".join(linhas)
     lam = num(cfg["lambda_question"], 2)
+
+    def marcadores(texto: str) -> str:
+        t = esc(texto)
+        for m in ("<VAL>", "<NUM>", "<DATE>"):
+            t = t.replace(m, f"\\texttt{{{m}}}")
+        return t
+
     tex = (
-        "\\begin{table}[!htbp]\n\\centering\n"
+        "\\begin{table}[!htb]\n\\centering\n"
         f"\\caption{{Exemplo das duas etapas de recuperação (banco \\texttt{{{esc(e['db_id'])}}}).}}\n\\footnotesize\n"
-        "\\begin{tabularx}{\\linewidth}{>{\\raggedright\\arraybackslash}p{2.9cm}|X}\n\\hline\n"
-        f"\\textbf{{Pergunta}} & {esc(e['pergunta'])} \\\\\n\\hline\n"
-        f"\\textbf{{Delexicalizada}} & {esc(e['pergunta_delexicalizada'])} \\\\\n\\hline\n"
-        f"\\textbf{{Consulta preliminar (C4)}} & {tt(e['c4']['consulta_preliminar'])} \\\\\n\\hline\n"
-        f"\\textbf{{Assinatura da consulta preliminar}} & {esc(assinatura(e['c4']['assinatura_preliminar']))} \\\\\n\\hline\n"
-        "\\end{tabularx}\n\n\\vspace{0.6\\baselineskip}\n"
-        "\\begin{tabularx}{\\linewidth}{c|X|c|c|c|c|c}\n\\hline\n"
-        "\\shortstack{\\rule{0pt}{2.5ex}\\textbf{Pos.}\\\\{}\\textbf{1ª et.}} & \\textbf{Pergunta da demonstração candidata} & "
-        "\\shortstack{\\rule{0pt}{2.5ex}\\textbf{Sim.}\\\\{}\\textbf{perg.}} & "
-        "\\shortstack{\\rule{0pt}{2.5ex}\\textbf{Sim.}\\\\{}\\textbf{estr.}} & \\textbf{Escore} & "
-        "\\shortstack{\\rule{0pt}{2.5ex}\\textbf{Pos.}\\\\{}\\textbf{final}} & \\textbf{Sel.} \\\\\n\\hline\n"
-        f"{corpo}\n\\hline\n\\end{{tabularx}}\n"
-        "\\par\\vspace{0.3\\baselineskip}\n\\parbox{0.94\\linewidth}{\\footnotesize\\raggedright "
+        "\\begin{tabularx}{\\linewidth}{@{}>{\\raggedright\\arraybackslash}p{3.3cm}X@{}}\n\\toprule\n"
+        f"\\textbf{{Pergunta}} & {esc(e['pergunta'])} \\\\\n"
+        f"\\textbf{{Delexicalizada}} & {marcadores(e['pergunta_delexicalizada'])} \\\\\n"
+        f"\\textbf{{Consulta preliminar (C4)}} & {tt(e['c4']['consulta_preliminar'])} \\\\\n"
+        f"\\textbf{{Assinatura (preliminar)}} & {esc(assinatura(e['c4']['assinatura_preliminar']))} \\\\\n"
+        "\\bottomrule\n\\end{tabularx}\n\n\\vspace{0.8\\baselineskip}\n"
+        "\\begin{tabularx}{\\linewidth}{@{}c>{\\raggedright\\arraybackslash}Xccccc@{}}\n\\toprule\n"
+        " & & \\multicolumn{3}{c}{\\textbf{Pontuação}} & & \\\\\n\\cmidrule(lr){3-5}\n"
+        "\\textbf{Pos. inicial} & \\textbf{Pergunta da demonstração candidata} & "
+        "$\\boldsymbol{\\mathrm{sim}_{\\mathrm{perg}}}$ & $\\boldsymbol{\\mathrm{sim}_{\\mathrm{estr}}}$ & "
+        "\\textbf{Escore} & \\textbf{Pos. final} & \\textbf{Seleção} \\\\\n\\midrule\n"
+        f"{corpo}\n\\bottomrule\n\\end{{tabularx}}\n"
+        "\\par\\vspace{0.3\\baselineskip}\n\\parbox{\\linewidth}{\\footnotesize\\raggedright "
         f"Pergunta do conjunto de validação, com $k = {k}$, $N = {cfg['n_candidates']}$ e $\\lambda = {lam}$. "
-        "Pos. 1ª et.: posição pela similaridade da pergunta delexicalizada (as $k$ primeiras são a seleção de C3). "
-        "Sim. estr.: similaridade entre a assinatura da consulta preliminar e a da consulta da demonstração. "
-        "Sel.: condições que incluíram a demonstração no \\textit{prompt}. A consulta de referência não participa "
-        "da seleção. As perguntas são reproduzidas literalmente do conjunto de dados, inclusive em suas repetições.}\n"
+        "Assinatura: só as características presentes (as demais são zero ou ausentes). "
+        "Pos. inicial: posição pela similaridade da pergunta delexicalizada ($\\mathrm{sim}_{\\mathrm{perg}}$); "
+        "as $k$ primeiras formam a seleção de C3. $\\mathrm{sim}_{\\mathrm{estr}}$: similaridade entre a assinatura "
+        "da consulta preliminar e a da consulta da demonstração. Escore e posição final: Equação \\ref{eq:escore}; as "
+        "$k$ primeiras formam a seleção de C4. Seleção: condições que incluíram a demonstração no \\textit{prompt}; em "
+        "cinza, as que entram em só uma das duas. A consulta de referência não participa da seleção. As perguntas são "
+        "reproduzidas literalmente do conjunto de dados, inclusive em suas repetições.}\n"
         "\\vspace{0.1\\baselineskip}\n\\newline \\footnotesize \\textbf{Fonte: Autoria própria (2026).}\n"
         "\\label{tab:exemplo_mecanismo}\n\\end{table}\n"
     )
